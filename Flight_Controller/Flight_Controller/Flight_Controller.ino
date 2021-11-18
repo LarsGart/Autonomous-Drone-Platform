@@ -261,6 +261,7 @@ void loop() {
 //    "qr=%0.4f+%0.4fi+%0.4fj+%0.4fk, qn=%0.4f+%0.4fi+%0.4fj+%0.4fk\n",
 //    qw, qx, qy, qz, qnw, qnx, qny, qnz
 //  );
+// lul
 
   // Send quaternion data over udp at a rate of 20Hz
   if (sendQuat) {
