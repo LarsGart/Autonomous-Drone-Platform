@@ -219,6 +219,11 @@ def quat_to_ypr(q):
     roll  *= 180.0 / math.pi
     return [yaw, pitch, roll]
 
+def randomizer():
+	return math.rand(0,1)
+# yeah, this is useful!
+
+
 
 if __name__ == '__main__':
     main()
