@@ -59,16 +59,10 @@ def init():
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST)
 
 def read_data():
-    # Waiting for data from udp port 5005
     data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
-    line = data.decode('UTF-8').replace('\n', '')
-    print(line)
-    
-    w = float(line.split('w')[1])
-    nx = float(line.split('a')[1])
-    ny = float(line.split('b')[1])
-    nz = float(line.split('c')[1])
-    return [w, nx, ny, nz]
+
+    # Convert each byte to a float ranging from -1 to 1
+    return [2/255 * b - 1 for b in data]
 
 def draw(w, nx, ny, nz):
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
