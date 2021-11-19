@@ -8,32 +8,13 @@ import math
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from pygame.locals import *
-import time
+import socket
 
-useSerial = False # set true for using serial for data transmission, false for wifi
-useQuat = True   # set true for using quaternions, false for using y,p,r angles
-
-if(useSerial):
-    import serial
-    ser = serial.Serial('/dev/ttyUSB0', 38400)
-else:
-    print('importing socket')
-    import socket
-
-    UDP_IP = "0.0.0.0"
-    UDP_PORT = 5005
-    print(UDP_PORT)
-    sock = socket.socket(socket.AF_INET, # Internet
-                         socket.SOCK_DGRAM) # UDP
-    sock.bind((UDP_IP, UDP_PORT))
-
-from random import gauss
-
-def make_rand_vector(dims):
-    vec = [gauss(0, 1) for i in range(dims)]
-    mag = sum(x**2 for x in vec) ** .5
-    return [x/mag for x in vec]
-
+UDP_IP = "0.0.0.0"
+UDP_PORT = 44444
+sock = socket.socket(socket.AF_INET, # Internet
+                        socket.SOCK_DGRAM) # UDP
+sock.bind((UDP_IP, UDP_PORT))
 
 def main():
     video_flags = OPENGL | DOUBLEBUF
@@ -49,26 +30,12 @@ def main():
         event = pygame.event.poll()
         if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
             break
-#        if(useQuat):
-#            print('about to read data')
-#            [w, nx, ny, nz] = read_data()
-#        else:
-#            [yaw, pitch, roll] = read_data()
-        if(useQuat):
-            ls = make_rand_vector(4)
 
-            w,nx,ny,nz = ls[0],ls[1],ls[2],ls[3]
-            print(w,nx,ny,nz)
-            time.sleep(0)
-            draw(w, nx, ny, nz)
-        else:
-            draw(1, yaw, pitch, roll)
+        [w, nx, ny, nz] = read_data()
+        draw(w, nx, ny, nz)
         pygame.display.flip()
         frames += 1
     print("fps: %d" % ((frames*1000)/(pygame.time.get_ticks()-ticks)))
-    if(useSerial):
-        ser.close()
-
 
 def resizewin(width, height):
     """
@@ -83,7 +50,6 @@ def resizewin(width, height):
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
 
-
 def init():
     glShadeModel(GL_SMOOTH)
     glClearColor(0.0, 0.0, 0.0, 0.0)
@@ -92,51 +58,17 @@ def init():
     glDepthFunc(GL_LEQUAL)
     glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST)
 
-
-def cleanSerialBegin():
-    if(useQuat):
-        try:
-            line = ser.readline().decode('UTF-8').replace('\n', '')
-            w = float(line.split('w')[1])
-            nx = float(line.split('a')[1])
-            ny = float(line.split('b')[1])
-            nz = float(line.split('c')[1])
-        except Exception:
-            pass
-    else:
-        try:
-            line = ser.readline().decode('UTF-8').replace('\n', '')
-            yaw = float(line.split('y')[1])
-            pitch = float(line.split('p')[1])
-            roll = float(line.split('r')[1])
-        except Exception:
-            pass
-
-
 def read_data():
-    if(useSerial):
-        ser.reset_input_buffer()
-        cleanSerialBegin()
-        line = ser.readline().decode('UTF-8').replace('\n', '')
-        print(line)
-    else:
-        # Waiting for data from udp port 5005
-        data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
-        line = data.decode('UTF-8').replace('\n', '')
-        print(line)
-                
-    if(useQuat):
-        w = float(line.split('w')[1])
-        nx = float(line.split('a')[1])
-        ny = float(line.split('b')[1])
-        nz = float(line.split('c')[1])
-        return [w, nx, ny, nz]
-    else:
-        yaw = float(line.split('y')[1])
-        pitch = float(line.split('p')[1])
-        roll = float(line.split('r')[1])
-        return [yaw, pitch, roll]
-
+    # Waiting for data from udp port 5005
+    data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
+    line = data.decode('UTF-8').replace('\n', '')
+    print(line)
+    
+    w = float(line.split('w')[1])
+    nx = float(line.split('a')[1])
+    ny = float(line.split('b')[1])
+    nz = float(line.split('c')[1])
+    return [w, nx, ny, nz]
 
 def draw(w, nx, ny, nz):
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -147,51 +79,43 @@ def draw(w, nx, ny, nz):
     drawText((-2.6, 1.6, 2), "Module to visualize quaternion or Euler angles data", 16)
     drawText((-2.6, -2, 2), "Press Escape to exit.", 16)
 
-    if(useQuat):
-        [yaw, pitch , roll] = quat_to_ypr([w, nx, ny, nz])
-        drawText((-2.6, -1.8, 2), "Yaw: %f, Pitch: %f, Roll: %f" %(yaw, pitch, roll), 16)
-        glRotatef(2 * math.acos(w) * 180.00/math.pi, -1 * nx, nz, ny)
-    else:
-        yaw = nx
-        pitch = ny
-        roll = nz
-        drawText((-2.6, -1.8, 2), "Yaw: %f, Pitch: %f, Roll: %f" %(yaw, pitch, roll), 16)
-        glRotatef(-roll, 0.00, 0.00, 1.00)
-        glRotatef(pitch, 1.00, 0.00, 0.00)
-        glRotatef(yaw, 0.00, 1.00, 0.00)
+    [yaw, pitch , roll] = quat_to_ypr([w, nx, ny, nz])
+    drawText((-2.6, -1.8, 2), "Yaw: %f, Pitch: %f, Roll: %f" %(yaw, pitch, roll), 16)
+    glRotatef(2 * math.acos(w) * 180.00/math.pi, -1 * nx, nz, ny)
 
-    #glBegin(GL_QUADS)
-    #glColor3f(0.0, 1.0, 0.0)
-    #glVertex3f(1.0, 0.2, -1.0)
-    #glVertex3f(-1.0, 0.2, -1.0)
-    #glVertex3f(-1.0, 0.2, 1.0)
-    #glVertex3f(1.0, 0.2, 1.0)
-    #glColor3f(1.0, 0.5, 0.0)
-    #glVertex3f(1.0, -0.2, 1.0)
-    #glVertex3f(-1.0, -0.2, 1.0)
-    #glVertex3f(-1.0, -0.2, -1.0)
-    #glVertex3f(1.0, -0.2, -1.0)
-    #glColor3f(1.0, 0.0, 0.0)
-    #glVertex3f(1.0, 0.2, 1.0)
-    #glVertex3f(-1.0, 0.2, 1.0)
-    #glVertex3f(-1.0, -0.2, 1.0)
-    #glVertex3f(1.0, -0.2, 1.0)
-    #glColor3f(1.0, 1.0, 0.0)
-    #glVertex3f(1.0, -0.2, -1.0)
-    #glVertex3f(-1.0, -0.2, -1.0)
-    #glVertex3f(-1.0, 0.2, -1.0)
-    #glVertex3f(1.0, 0.2, -1.0)
-    #glColor3f(0.0, 0.0, 1.0)
-    #glVertex3f(-1.0, 0.2, 1.0)
-    #glVertex3f(-1.0, 0.2, -1.0)
-    #glVertex3f(-1.0, -0.2, -1.0)
-    #glVertex3f(-1.0, -0.2, 1.0)
-    #glColor3f(1.0, 0.0, 1.0)
-    #glVertex3f(1.0, 0.2, -1.0)
-    #glVertex3f(1.0, 0.2, 1.0)
-    #glVertex3f(1.0, -0.2, 1.0)
-    #glVertex3f(1.0, -0.2, -1.0)
-    #glEnd()
+    # glBegin(GL_QUADS)
+    # glColor3f(0.0, 1.0, 0.0)
+    # glVertex3f(1.0, 0.2, -1.0)
+    # glVertex3f(-1.0, 0.2, -1.0)
+    # glVertex3f(-1.0, 0.2, 1.0)
+    # glVertex3f(1.0, 0.2, 1.0)
+    # glColor3f(1.0, 0.5, 0.0)
+    # glVertex3f(1.0, -0.2, 1.0)
+    # glVertex3f(-1.0, -0.2, 1.0)
+    # glVertex3f(-1.0, -0.2, -1.0)
+    # glVertex3f(1.0, -0.2, -1.0)
+    # glColor3f(1.0, 0.0, 0.0)
+    # glVertex3f(1.0, 0.2, 1.0)
+    # glVertex3f(-1.0, 0.2, 1.0)
+    # glVertex3f(-1.0, -0.2, 1.0)
+    # glVertex3f(1.0, -0.2, 1.0)
+    # glColor3f(1.0, 1.0, 0.0)
+    # glVertex3f(1.0, -0.2, -1.0)
+    # glVertex3f(-1.0, -0.2, -1.0)
+    # glVertex3f(-1.0, 0.2, -1.0)
+    # glVertex3f(1.0, 0.2, -1.0)
+    # glColor3f(0.0, 0.0, 1.0)
+    # glVertex3f(-1.0, 0.2, 1.0)
+    # glVertex3f(-1.0, 0.2, -1.0)
+    # glVertex3f(-1.0, -0.2, -1.0)
+    # glVertex3f(-1.0, -0.2, 1.0)
+    # glColor3f(1.0, 0.0, 1.0)
+    # glVertex3f(1.0, 0.2, -1.0)
+    # glVertex3f(1.0, 0.2, 1.0)
+    # glVertex3f(1.0, -0.2, 1.0)
+    # glVertex3f(1.0, -0.2, -1.0)
+    # glEnd()
+
     vertices= ((1, -1, -1),(1, 1, -1),(-1, 1, -1),(-1, -1, -1),(1, -1, 1),(1, 1, 1),(-1, -1, 1),(-1, 1, 1))
     edges = ((0,1),(0,3),(0,4),(2,1),(2,3),(2,7),(6,3),(6,4),(6,7),(5,1),(5,4),(5,7))
 
@@ -200,7 +124,6 @@ def draw(w, nx, ny, nz):
         for vertex in edge:
             glVertex3fv(vertices[vertex])
     glEnd()
-
 
 def drawText(position, textString, size):
     font = pygame.font.SysFont("Courier", size, True)
@@ -215,15 +138,8 @@ def quat_to_ypr(q):
     roll  = math.atan2(2.0 * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3])
     pitch *= 180.0 / math.pi
     yaw   *= 180.0 / math.pi
-    yaw   -= -0.13  # Declination at Chandrapur, Maharashtra is - 0 degress 13 min
     roll  *= 180.0 / math.pi
     return [yaw, pitch, roll]
-
-def randomizer():
-	return math.rand(0,1)
-# yeah, this is useful!
-
-
 
 if __name__ == '__main__':
     main()
