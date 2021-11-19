@@ -2,7 +2,7 @@ import socket
 import time
 import sys
 
-serverAddressPort = ('127.0.0.1', 44444)
+serverAddressPort = ('10.0.0.41', 44444)
 bufferSize = 1024
 
 socc = socket.socket(family = socket.AF_INET, type = socket.SOCK_DGRAM)
@@ -20,4 +20,4 @@ def quatToBytes(quat):
 while True:
 	quatBytes = quatToBytes(make_rand_vector(4))
 	socc.sendto(quatBytes, serverAddressPort)
-	time.sleep(0.05)
+	time.sleep(0.5)
