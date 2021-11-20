@@ -1,14 +1,12 @@
-"""
-PyTeapot module for drawing rotating cube using OpenGL as per
-quaternion or yaw, pitch, roll angles received over serial port.
-"""
-
 import pygame
 import math
 from OpenGL.GL import *
 from OpenGL.GLU import *
 from pygame.locals import *
 import socket
+
+
+timeStampedData = []
 
 UDP_IP = "0.0.0.0"
 UDP_PORT = 44444
@@ -20,22 +18,28 @@ def main():
     video_flags = OPENGL | DOUBLEBUF
     pygame.init()
     screen = pygame.display.set_mode((640, 480), video_flags)
-    pygame.display.set_caption("PyTeapot IMU orientation visualization")
+    pygame.display.set_caption("Drone Quaternion Orientation Visualizer")
     resizewin(640, 480)
     init()
-    print('initialized')
     frames = 0
     ticks = pygame.time.get_ticks()
     while 1:
         event = pygame.event.poll()
         if event.type == QUIT or (event.type == KEYDOWN and event.key == K_ESCAPE):
+
+            # writing timeStampedData to text file in same directory
+            textfile = open("timeStampedData.txt", "w")
+            for element in timeStampedData:
+                textfile.write(str(element) + "\n")
+            textfile.close()
+
             break
 
         [w, nx, ny, nz] = read_data()
         draw(w, nx, ny, nz)
         pygame.display.flip()
-        frames += 1
-    print("fps: %d" % ((frames*1000)/(pygame.time.get_ticks()-ticks)))
+        #frames += 1
+    #print("fps: %d" % ((frames*1000)/(pygame.time.get_ticks()-ticks)))
 
 def resizewin(width, height):
     """
@@ -61,8 +65,11 @@ def init():
 def read_data():
     data, addr = sock.recvfrom(1024) # buffer size is 1024 bytes
 
+    timeStampedData.append([x for x in data])
+
+
     # Convert each byte to a float ranging from -1 to 1
-    return [2/255 * b - 1 for b in data]
+    return [2/255 * b - 1 for b in data[:4]]
 
 def draw(w, nx, ny, nz):
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -128,7 +135,8 @@ def drawText(position, textString, size):
 
 def quat_to_ypr(q):
     yaw   = math.atan2(2.0 * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3])
-    pitch = -math.asin(2.0 * (q[1] * q[3] - q[0] * q[2]))
+    val = 2.0 * (q[1] * q[3] - q[0] * q[2])
+    pitch = -math.asin(1 if val > 1 else -1 if val < -1 else val)
     roll  = math.atan2(2.0 * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3])
     pitch *= 180.0 / math.pi
     yaw   *= 180.0 / math.pi
