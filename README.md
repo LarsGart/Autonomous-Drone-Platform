@@ -13,8 +13,8 @@ Frame data is captured using the M12 Lens Camera for Raspberry Pi and is preproc
 
 # Research Papers
 
-[Control of a Quadrotor with Reinforcement Learning](arxiv.org/abs/1707.05110)
+[Control of a Quadrotor with Reinforcement Learning](https://arxiv.org/abs/1707.05110)
 
-[Deep Convolutional Neural Network-Based Autonomous Drone Navigation](arxiv.org/pdf/1905.01657.pdf)
+[Deep Convolutional Neural Network-Based Autonomous Drone Navigation](https://arxiv.org/pdf/1905.01657.pdf)
 
-[AutoPilot: Automating Co-Design Space Exploration for Autonomous UAVs](arxiv.org/pdf/2102.02988.pdf)
+[AutoPilot: Automating Co-Design Space Exploration for Autonomous UAVs](https://arxiv.org/pdf/2102.02988.pdf)
