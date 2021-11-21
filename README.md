@@ -18,3 +18,5 @@ Frame data is captured using the M12 Lens Camera for Raspberry Pi and is preproc
 [Deep Convolutional Neural Network-Based Autonomous Drone Navigation](https://arxiv.org/abs/1905.01657.pdf)
 
 [AutoPilot: Automating Co-Design Space Exploration for Autonomous UAVs](https://arxiv.org/abs/2102.02988.pdf)
+
+[Learning to Fly—a Gym Environment with PyBullet Physics for Reinforcement Learning of Multi-agent Quadcopter Control](https://arxiv.org/abs/2103.02142v3.pdf)
