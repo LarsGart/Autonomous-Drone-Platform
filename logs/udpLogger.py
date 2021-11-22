@@ -15,7 +15,7 @@ while(True):
 
     print(index)
     data.append(stream)
-    if index == 200:
+    if index == 600:
         break
     index+=1
 
