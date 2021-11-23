@@ -1,7 +1,4 @@
-# Jupyter notebook
+# Ignoring Jupyter Notebooks so that the linguist breakdown returns meaningful language percentages.
 
-# For text count
-#*.ipynb  text
-
-# To ignore it use below
-*.ipynb linguist-documentation
+quaternions/Preliminary Flight Data Exploration.ipynb linguist-generated=true
+logs/magnetometer Analysis.ipynb linguist-generated=true
