@@ -10,6 +10,8 @@ localPort = 44444
 sock = socket.socket(family = socket.AF_INET, type = socket.SOCK_DGRAM)
 sock.bind((localIP, localPort))
 
+homeDir = os.path.expanduser('~/Autonomous-Drone-Platform/logs/')
+calibFile = homeDir + 'calibrationParams.joblib'
 
 def sphereFit(spX,spY,spZ):
     # Assemble the A matrix
@@ -49,11 +51,11 @@ def calibrate():
     return fittedX,fittedY,fittedZ 
 
 def calibrationQuery(ipaddr):
-    fileExists = os.path.exists('calibrationParams.joblib')
+    fileExists = os.path.exists(calibFile)
 
     if fileExists:
         print('Calibration parameters found')
-        calibrationParams = load('calibrationParams.joblib')
+        calibrationParams = load(calibFile)
         sock.sendto(str.encode(calibrationParams), ipaddr)
 
     else:
@@ -62,23 +64,19 @@ def calibrationQuery(ipaddr):
         fittedX,fittedY,fittedZ = calibrate()
 
         calibrationParams = str(fittedX[0])+','+str(fittedY[0])+','+str(fittedZ[0])
-        dump(calibrationParams, 'calibrationParams.joblib')
+        dump(calibrationParams, calibFile)
         print('Message is: ', calibrationParams, type(calibrationParams))
         sock.sendto(str.encode(calibrationParams), ipaddr)
 
 print("Listening for UDP packets...")
 
-while(True):
+while (True):
     data = sock.recvfrom(1024)
     packet = data[0].decode()
 
     if packet == 'calibration query':
         calibrationQuery(data[1])
-
-        gate = True
-        while gate:
-            data = sock.recvfrom(1024)[0].decode()
-            if data != None:
-                gate = False
-            print(str(data))
+    
+    elif packet[0] == 'H':
+        print(packet)
         break
