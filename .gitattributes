@@ -1,4 +1,3 @@
 # Ignoring Jupyter Notebooks so that the linguist breakdown returns meaningful language percentages.
 
-quaternions/Preliminary Flight Data Exploration.ipynb linguist-generated=true
-logs/magnetometer Analysis.ipynb linguist-generated=true
+*.ipynb linguist-generated = true
