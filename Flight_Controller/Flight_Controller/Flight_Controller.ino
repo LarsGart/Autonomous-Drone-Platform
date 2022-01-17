@@ -75,7 +75,7 @@ WiFiUDP udp;
 float pidSetPoints[3] = {0, 0, 0}; // Yaw, Pitch, Roll
 
 // Errors
-float err[3]; // Measured errors (compared to instructions) : [Yaw, Pitch, Roll]
+float err[3] = {0, 0, 0}; // Measured errors (compared to instructions) : [Yaw, Pitch, Roll]
 float deltaErr[3] = {0, 0, 0}; // Error deltas in that order   : Yaw, Pitch, Roll
 float errSum[3] = {0, 0, 0}; // Error sums (used for integral component) : [Yaw, Pitch, Roll]
 float prevErr[3] = {0, 0, 0}; // Last errors (used for derivative component) : [Yaw, Pitch, Roll]
@@ -85,13 +85,8 @@ float kP[3] = {4.0, 1.3, 1.3};    // P coefficients in that order : Yaw, Pitch, 
 float kI[3] = {0.02, 0.04, 0.04}; // I coefficients in that order : Yaw, Pitch, Roll
 float kD[3] = {0, 18, 18};        // D coefficients in that order : Yaw, Pitch, Roll
 
-// Define drone quaternion
-float qnw = 0, qnx = 0, qny = 0, qnz = 0;
-
 // Define drone angles
-float yaw = 0;
-float pitch = 0;
-float roll = 0;
+float angs[3] = {0, 0, 0};
 
 /*
  * Function: onUDPTimer
@@ -270,6 +265,18 @@ void calibrateMagnetometer() {
 }
 
 /*
+ * Function: cleanRxIn
+ * 
+ * This function creates a 16us deadband in the center to prevent pid errors
+ * when the joystick values doesn't perfectly output 1500us (centered)
+ * 
+ * returns: corrected pulse output (1000-2000)
+ */
+int correctRxIn(int rxIn) {
+  return ((rxIn > 1492 && rxIn < 1508) ? 1500 : rxIn);
+}
+
+/*
  * Function: pidController
  * 
  * This function does the pid and motor speed calculations
@@ -277,34 +284,30 @@ void calibrateMagnetometer() {
  * returns null
  */
 void calcPID() {
-  float yawPID = 0;
-  float pitchPID = 0;
-  float rollPID = 0;
-  int throttle = constrain((int) rxPulseOut[2], 1000, 2000);
+  float pid[3] = {0, 0, 0};
+  int rawThrottle = constrain((int) rxPulseOut[2], 1000, 2000);
+  int throttle = 0.5 * rawThrottle + 500;
 
   // Initialize motor commands with throttle
-  mOut[0] = throttle;
-  mOut[1] = throttle;
-  mOut[2] = throttle;
-  mOut[3] = throttle;
+  for (int i = 0; i < 4; ++i) {
+    mOut[i] = throttle;
+  }
 
   // Do not calculate anything if throttle is 0
-  if (throttle >= 1000) {
-    // PID = e.Kp + ∫e.Ki + Δe.Kd
-    yawPID = (err[0] * kP[0]) + (errSum[0] * kI[0]) + (deltaErr[0] * kD[0]);
-    pitchPID = (err[1] * kP[1]) + (errSum[1] * kI[1]) + (deltaErr[1] * kD[1]);
-    rollPID = (err[2] * kP[2]) + (errSum[2] * kI[2]) + (deltaErr[2] * kD[2]);
+  if (rawThrottle >= 1012) {
+    for (int i = 0; i < 3; ++i) {
+      // PID = e.Kp + ∫e.Ki + Δe.Kd
+      pid[i] = (err[i] * kP[i]) + (errSum[i] * kI[i]) + (deltaErr[i] * kD[i]);
 
-    // Keep values within acceptable range. TODO export hard-coded values in variables/const
-    yawPID = constrain(yawPID, -400, 400);
-    pitchPID = constrain(pitchPID, -400, 400);
-    rollPID = constrain(rollPID, -400, 400);
+      // Constrain values
+      pid[i] = constrain(pid[i], -400, 400);
+    }
 
     // Calculate pulse duration for each ESC
-    mOut[0] = throttle - rollPID - pitchPID + yawPID;
-    mOut[1] = throttle + rollPID - pitchPID - yawPID;
-    mOut[2] = throttle - rollPID + pitchPID - yawPID;
-    mOut[3] = throttle + rollPID + pitchPID + yawPID;
+    mOut[0] = throttle - pid[2] - pid[1] + pid[0];
+    mOut[1] = throttle + pid[2] - pid[1] - pid[0];
+    mOut[2] = throttle - pid[2] + pid[1] - pid[0];
+    mOut[3] = throttle + pid[2] + pid[1] + pid[0];
   }
 
   // Prevent out-of-range-values
@@ -313,32 +316,31 @@ void calcPID() {
   }
 }
 
-//void calcErr() {
-//    // Calculate current errors
-//    err[0] = yaw - pid_set_points[YAW];
-//    err[1] = pitch - pid_set_points[PITCH];
-//    err[2] = roll - pid_set_points[ROLL];
-//
-//    // Calculate sum of errors : Integral coefficients
-//    error_sum[YAW]   += errors[YAW];
-//    error_sum[PITCH] += errors[PITCH];
-//    error_sum[ROLL]  += errors[ROLL];
-//
-//    // Keep values in acceptable range
-//    error_sum[YAW]   = minMax(error_sum[YAW],   -400/Ki[YAW],   400/Ki[YAW]);
-//    error_sum[PITCH] = minMax(error_sum[PITCH], -400/Ki[PITCH], 400/Ki[PITCH]);
-//    error_sum[ROLL]  = minMax(error_sum[ROLL],  -400/Ki[ROLL],  400/Ki[ROLL]);
-//
-//    // Calculate error delta : Derivative coefficients
-//    delta_err[YAW]   = errors[YAW]   - previous_error[YAW];
-//    delta_err[PITCH] = errors[PITCH] - previous_error[PITCH];
-//    delta_err[ROLL]  = errors[ROLL]  - previous_error[ROLL];
-//
-//    // Save current error as previous_error for next time
-//    previous_error[YAW]   = errors[YAW];
-//    previous_error[PITCH] = errors[PITCH];
-//    previous_error[ROLL]  = errors[ROLL];
-//}
+/*
+ * Function: calcErr
+ * 
+ * This function calculates the P, I, and D errors used for the PID controller
+ * 
+ * returns null
+ */
+void calcErr() {
+  for (int i = 0; i < 3; ++i) {
+    // Calculate current errors
+    err[i] = angs[i] - pidSetPoints[0];
+    
+    // Calculate sum of errors: Integral coefficients
+    errSum[i] += err[i];
+
+    // Constrain values
+    errSum[i] = constrain(errSum[i], -400 / kI[i], 400 / kI[i]);
+
+    // Calculate error delta : Derivative coefficients
+    deltaErr[i] = err[i] - prevErr[i];
+
+    // Save current error as previous_error for next time
+    prevErr[i] = err[i];
+  }
+}
 
 /*
  * Function: getOrientation
@@ -369,12 +371,12 @@ void getOrientation() {
     );
 
     // Get drone angles (angular velocity for yaw)
-    yaw = g.gyro.z * SENSORS_RADS_TO_DPS;
-    
-    roll = filter.getPitch(); // pitch and roll are reversed because of sensor orientation
+    angs[0] = g.gyro.z * SENSORS_RADS_TO_DPS;
 
-    float rawPitch = filter.getRoll();
-    pitch = (rawPitch < 0 ? -180 - rawPitch : 180 - rawPitch);
+    float pitch = filter.getRoll(); // Pitch and roll are reversed because of sensor orientation
+    angs[1] = (pitch < 0 ? -180 - pitch : 180 - pitch);
+    
+    angs[2] = filter.getPitch();
   }
 }
 
@@ -478,50 +480,50 @@ void setup() {
 void loop() {
   // Get drone orientation
   getOrientation();
-  
-//  int t = constrain((int) rxPulseOut[2] - 1000, 0, 1000);
-//  int r = constrain((int) rxPulseOut[0] - 1500, -500, 500);
-//  int p = constrain((int) rxPulseOut[1] - 1500, -500, 500);
-//  int y = constrain((int) rxPulseOut[3] - 1500, -500, 500);
-//
-//  int mOut[4] = {
-//    constrain(0.4 * t + 0.1 * r - 0.1 * p + 0.1 * y, 0, 1000),
-//    constrain(0.4 * t - 0.1 * r - 0.1 * p - 0.1 * y, 0, 1000),
-//    constrain(0.4 * t - 0.1 * r + 0.1 * p + 0.1 * y, 0, 1000),
-//    constrain(0.4 * t + 0.1 * r + 0.1 * p - 0.1 * y, 0, 1000)
-//  };
-//
-//  for (int i = 0; i < 4; ++i) {
-//    MOTORS[i].writeMicroseconds(mOut[i] + 1000);
-//  }
+
+  // Get desired orientation
+  pidSetPoints[0] = 0.12 * correctRxIn(rxPulseOut[3]) - 180;
+  pidSetPoints[1] = 0.03 * correctRxIn(rxPulseOut[1]) - 45;
+  pidSetPoints[2] = 0.03 * correctRxIn(rxPulseOut[0]) - 45;
+
+  // Calculate errors
+  calcErr();
+
+  // Calculate PID and motor outputs
+  calcPID();
+
+  // Output motor speed
+  for (int i = 0; i < 4; ++i) {
+    MOTORS[i].writeMicroseconds(mOut[i]);
+  }
 
   // Send quaternion data over udp when the udp timer is triggered
   if (xSemaphoreTake(udpTimerSem, 0) == pdTRUE) {
-    // Scale quaternion data from [-1, 1] to [0, 255]
-    char cw = 127.5 * qnw + 127.5;
-    char cx = 127.5 * qnx + 127.5;
-    char cy = 127.5 * qny + 127.5;
-    char cz = 127.5 * qnz + 127.5;
+//    // Scale quaternion data from [-1, 1] to [0, 255]
+//    char cw = 127.5 * qnw + 127.5;
+//    char cx = 127.5 * qnx + 127.5;
+//    char cy = 127.5 * qny + 127.5;
+//    char cz = 127.5 * qnz + 127.5;
+//
+//    // Scale motor data from [0, 1000] to [0, 255]
+//    char cm0 = mOut[0] * 0.255;
+//    char cm1 = mOut[1] * 0.255;
+//    char cm2 = mOut[2] * 0.255;
+//    char cm3 = mOut[3] * 0.255;
+//
+//    // Scale control inputs from [1000, 2000] to [0, 255]
+//    char ci0 = 0.255 * rxPulseOut[0] - 255;
+//    char ci1 = 0.255 * rxPulseOut[1] - 255;
+//    char ci2 = 0.255 * rxPulseOut[2] - 255;
+//    char ci3 = 0.255 * rxPulseOut[3] - 255;
+//
+//    // Split timestamp into 4 bytes
+//    unsigned long t = millis();
+//    char ct0 = t & 255;
+//    char ct1 = (t >> 8) & 255;
+//    char ct2 = (t >> 16) & 255;
 
-    // Scale motor data from [0, 1000] to [0, 255]
-    char cm0 = mOut[0] * 0.255;
-    char cm1 = mOut[1] * 0.255;
-    char cm2 = mOut[2] * 0.255;
-    char cm3 = mOut[3] * 0.255;
-
-    // Scale control inputs from [1000, 2000] to [0, 255]
-    char ci0 = 0.255 * rxPulseOut[0] - 255;
-    char ci1 = 0.255 * rxPulseOut[1] - 255;
-    char ci2 = 0.255 * rxPulseOut[2] - 255;
-    char ci3 = 0.255 * rxPulseOut[3] - 255;
-
-    // Split timestamp into 4 bytes
-    unsigned long t = millis();
-    char ct0 = t & 255;
-    char ct1 = (t >> 8) & 255;
-    char ct2 = (t >> 16) & 255;
-
-    Serial.printf("yaw: %0.2f, pitch: %0.2f, roll: %0.2f\n", yaw, pitch, roll);
+//    Serial.printf("yaw: %0.2f, pitch: %0.2f, roll: %0.2f\n", yaw, pitch, roll);
 
 //    udp.beginPacket(udpAddr, udpPort);
 //    udp.printf(
