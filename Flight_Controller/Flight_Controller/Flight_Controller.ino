@@ -75,15 +75,15 @@ WiFiUDP udp;
 float pidSetPoints[3] = {0, 0, 0}; // Yaw, Pitch, Roll
 
 // Errors
-float err[3] = {0, 0, 0}; // Measured errors (compared to instructions) : [Yaw, Pitch, Roll]
-float deltaErr[3] = {0, 0, 0}; // Error deltas in that order   : Yaw, Pitch, Roll
-float errSum[3] = {0, 0, 0}; // Error sums (used for integral component) : [Yaw, Pitch, Roll]
-float prevErr[3] = {0, 0, 0}; // Last errors (used for derivative component) : [Yaw, Pitch, Roll]
+float err[3] = {0, 0, 0}; // Measured errors (compared to instructions): [Yaw, Pitch, Roll]
+float deltaErr[3] = {0, 0, 0}; // Error deltas in that order: Yaw, Pitch, Roll
+float errSum[3] = {0, 0, 0}; // Error sums (used for integral component): [Yaw, Pitch, Roll]
+float prevErr[3] = {0, 0, 0}; // Last errors (used for derivative component): [Yaw, Pitch, Roll]
 
 // PID coefficients
-float kP[3] = {1.0, 1.2, 1.2};    // P coefficients in that order : Yaw, Pitch, Roll
-float kI[3] = {0, 0, 0}; // I coefficients in that order : Yaw, Pitch, Roll
-float kD[3] = {0, 30, 30};        // D coefficients in that order : Yaw, Pitch, Roll
+float kP[3] = {1.0, 1.3, 1.3}; // P coefficients in that order: Yaw, Pitch, Roll
+float kI[3] = {0, 0, 0}; // I coefficients in that order: Yaw, Pitch, Roll
+float kD[3] = {0, 30, 30}; // D coefficients in that order: Yaw, Pitch, Roll
 
 const float pidLimit = 200; // Max effect the PID will have on motor speeds
 
@@ -547,8 +547,8 @@ void loop() {
   
     // Get desired orientation
     pidSetPoints[0] = 0.12 * correctRxIn(rxPulseOut[3]) - 180;
-    pidSetPoints[1] = -0.03 * correctRxIn(rxPulseOut[1]) + 45;
-    pidSetPoints[2] = -0.03 * correctRxIn(rxPulseOut[0]) + 45;
+    pidSetPoints[1] = -0.06 * correctRxIn(rxPulseOut[1]) + 90;
+    pidSetPoints[2] = -0.06 * correctRxIn(rxPulseOut[0]) + 90;
   
     // Calculate errors
     calcErr();
