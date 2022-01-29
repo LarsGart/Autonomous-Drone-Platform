@@ -81,9 +81,11 @@ float errSum[3] = {0, 0, 0}; // Error sums (used for integral component) : [Yaw,
 float prevErr[3] = {0, 0, 0}; // Last errors (used for derivative component) : [Yaw, Pitch, Roll]
 
 // PID coefficients
-float kP[3] = {4.0, 1.3, 1.3};    // P coefficients in that order : Yaw, Pitch, Roll
-float kI[3] = {0.02, 0.04, 0.04}; // I coefficients in that order : Yaw, Pitch, Roll
-float kD[3] = {0, 18, 18};        // D coefficients in that order : Yaw, Pitch, Roll
+float kP[3] = {1.0, 1.2, 1.2};    // P coefficients in that order : Yaw, Pitch, Roll
+float kI[3] = {0, 0, 0}; // I coefficients in that order : Yaw, Pitch, Roll
+float kD[3] = {0, 30, 30};        // D coefficients in that order : Yaw, Pitch, Roll
+
+const float pidLimit = 200; // Max effect the PID will have on motor speeds
 
 // Define drone angles
 float angs[3] = {0, 0, 0};
@@ -270,6 +272,8 @@ void calibrateMagnetometer() {
  * This function creates a 16us deadband in the center to prevent pid errors
  * when the joystick values doesn't perfectly output 1500us (centered)
  * 
+ * int rxIn: raw receiever input
+ * 
  * returns: corrected pulse output (1000-2000)
  */
 int correctRxIn(int rxIn) {
@@ -277,7 +281,48 @@ int correctRxIn(int rxIn) {
 }
 
 /*
- * Function: pidController
+ * Function: updatePIDconst
+ * 
+ * This function updates the P, I, or D constants based on what it receives from
+ * the udp socket
+ * 
+ * char* udpData: message received from the udp socket
+ * 
+ * returns: true if pid was updated
+ */
+bool updatePIDconst(char* udpData) {
+  // Select constant array
+  float *selectedParam;
+  switch (udpData[0]) {
+    case 'p':
+      selectedParam = kP; break;
+    case 'i':
+      selectedParam = kI; break;
+    case 'd':
+      selectedParam = kD; break;
+    default:
+      return false;
+  }
+
+  // Select yaw, pitch, or roll from that array
+  int i = udpData[1] - 48;
+  if (i < 0 || i > 2) {
+    return false;
+  }
+
+  // Convert number in the string to a float
+  char fstr[64];
+  memcpy(fstr, udpData + 3, 64);
+  float f = atof(fstr);
+
+  // Update requested constant
+  *(selectedParam + i) = f;
+
+  return true;
+}
+
+/*
+ * Function: calcPID
  * 
  * This function does the pid and motor speed calculations
  * 
@@ -300,19 +345,35 @@ void calcPID() {
       pid[i] = (err[i] * kP[i]) + (errSum[i] * kI[i]) + (deltaErr[i] * kD[i]);
 
       // Constrain values
-      pid[i] = constrain(pid[i], -400, 400);
+      pid[i] = constrain(pid[i], -pidLimit, pidLimit);
     }
 
     // Calculate pulse duration for each ESC
-    mOut[0] = throttle - pid[2] - pid[1] + pid[0];
-    mOut[1] = throttle + pid[2] - pid[1] - pid[0];
-    mOut[2] = throttle - pid[2] + pid[1] - pid[0];
-    mOut[3] = throttle + pid[2] + pid[1] + pid[0];
+    mOut[0] = throttle - pid[0] - pid[1] + pid[2];
+    mOut[1] = throttle + pid[0] - pid[1] - pid[2];
+    mOut[2] = throttle - pid[0] + pid[1] - pid[2];
+    mOut[3] = throttle + pid[0] + pid[1] + pid[2];
   }
 
   // Prevent out-of-range-values
   for (int i = 0; i < 4; ++i) {
     mOut[i] = constrain(mOut[i], 1000, 2000);
+  }
+}
+
+/*
+ * Function: resetErr
+ * 
+ * This function resets the error values to 0
+ * 
+ * returns null
+ */
+void resetErr() {
+  for (int i = 0; i < 3; ++i) {
+    err[i] = 0;
+    errSum[i] = 0;
+    deltaErr[i] = 0;
+    prevErr[i] = 0;
   }
 }
 
@@ -326,13 +387,16 @@ void calcPID() {
 void calcErr() {
   for (int i = 0; i < 3; ++i) {
     // Calculate current errors
-    err[i] = angs[i] - pidSetPoints[0];
-    
-    // Calculate sum of errors: Integral coefficients
-    errSum[i] += err[i];
+    err[i] = angs[i] - pidSetPoints[i];
 
-    // Constrain values
-    errSum[i] = constrain(errSum[i], -400 / kI[i], 400 / kI[i]);
+    // Only update error sum if integral coefficient is > 0
+    if (kI[i] > 0) {
+      // Calculate sum of errors: Integral coefficients
+      errSum[i] += err[i];
+  
+      // Constrain values
+      errSum[i] = constrain(errSum[i], -pidLimit / kI[i], pidLimit / kI[i]);
+    }
 
     // Calculate error delta : Derivative coefficients
     deltaErr[i] = err[i] - prevErr[i];
@@ -350,34 +414,31 @@ void calcErr() {
  * returns null
  */
 void getOrientation() {
-  // Update the filter when the filter timer is triggered
-  if (xSemaphoreTake(filterTimerSem, 0) == pdTRUE) {
-    // Read sensor values
-    sensors_event_t a, g, m;
-    accelerometer -> getEvent(&a);
-    gyroscope -> getEvent(&g);
-    magnetometer -> getEvent(&m);
-  
-    // Calibrate sensor values
-    cal.calibrate(a);
-    cal.calibrate(g);
-    cal.calibrate(m);
-  
-    // Update sensor fusion filter
-    filter.update(
-      g.gyro.x * SENSORS_RADS_TO_DPS, g.gyro.y * SENSORS_RADS_TO_DPS, g.gyro.z * SENSORS_RADS_TO_DPS,
-      a.acceleration.x, a.acceleration.y, a.acceleration.z,
-      m.magnetic.x, m.magnetic.y, m.magnetic.z
-    );
+  // Read sensor values
+  sensors_event_t a, g, m;
+  accelerometer -> getEvent(&a);
+  gyroscope -> getEvent(&g);
+  magnetometer -> getEvent(&m);
 
-    // Get drone angles (angular velocity for yaw)
-    angs[0] = g.gyro.z * SENSORS_RADS_TO_DPS;
+  // Calibrate sensor values
+  cal.calibrate(a);
+  cal.calibrate(g);
+  cal.calibrate(m);
 
-    float pitch = filter.getRoll(); // Pitch and roll are reversed because of sensor orientation
-    angs[1] = (pitch < 0 ? -180 - pitch : 180 - pitch);
-    
-    angs[2] = filter.getPitch();
-  }
+  // Update sensor fusion filter
+  filter.update(
+    g.gyro.x * SENSORS_RADS_TO_DPS, g.gyro.y * SENSORS_RADS_TO_DPS, g.gyro.z * SENSORS_RADS_TO_DPS,
+    a.acceleration.x, a.acceleration.y, a.acceleration.z,
+    m.magnetic.x, m.magnetic.y, m.magnetic.z
+  );
+
+  // Get drone angles (angular velocity for yaw)
+  angs[0] = g.gyro.z * SENSORS_RADS_TO_DPS;
+
+  float pitch = filter.getRoll(); // Pitch and roll are reversed because of sensor orientation
+  angs[1] = (pitch < 0 ? 180 + pitch : pitch - 180);
+  
+  angs[2] = -filter.getPitch();
 }
 
 void setup() {
@@ -446,7 +507,8 @@ void setup() {
     delay(500);
     Serial.print(".");
   }
-  Serial.printf("\nConnected to network\nIP Address: %s\n", WiFi.localIP());
+  Serial.print("\nConnected to network\nIP Address: ");
+  Serial.println(WiFi.localIP());
 
   // Create UDP
   udp.begin(udpPort);
@@ -478,23 +540,38 @@ void setup() {
 }
 
 void loop() {
-  // Get drone orientation
-  getOrientation();
-
-  // Get desired orientation
-  pidSetPoints[0] = 0.12 * correctRxIn(rxPulseOut[3]) - 180;
-  pidSetPoints[1] = 0.03 * correctRxIn(rxPulseOut[1]) - 45;
-  pidSetPoints[2] = 0.03 * correctRxIn(rxPulseOut[0]) - 45;
-
-  // Calculate errors
-  calcErr();
-
-  // Calculate PID and motor outputs
-  calcPID();
-
-  // Output motor speed
-  for (int i = 0; i < 4; ++i) {
-    MOTORS[i].writeMicroseconds(mOut[i]);
+  // Update orientation and pid when the filter timer is triggered
+  if (xSemaphoreTake(filterTimerSem, 0) == pdTRUE) {
+    // Get drone orientation
+    getOrientation();
+  
+    // Get desired orientation
+    pidSetPoints[0] = 0.12 * correctRxIn(rxPulseOut[3]) - 180;
+    pidSetPoints[1] = -0.03 * correctRxIn(rxPulseOut[1]) + 45;
+    pidSetPoints[2] = -0.03 * correctRxIn(rxPulseOut[0]) + 45;
+  
+    // Calculate errors
+    calcErr();
+  
+    // Calculate PID and motor outputs
+    calcPID();
+  
+    // Output motor speed
+    for (int i = 0; i < 4; ++i) {
+      MOTORS[i].writeMicroseconds(mOut[i]);
+    }
+  
+    // Read UDP data and update PID
+    char packetBuffer[128];
+    int packetSize = udp.parsePacket();
+    if (packetSize) {
+      int n = udp.read(packetBuffer, 128);
+      packetBuffer[n] = 0;
+      bool updated = updatePIDconst(packetBuffer);
+      if (updated) {
+        resetErr();
+      }
+    }
   }
 
   // Send quaternion data over udp when the udp timer is triggered
@@ -523,7 +600,7 @@ void loop() {
 //    char ct1 = (t >> 8) & 255;
 //    char ct2 = (t >> 16) & 255;
 
-//    Serial.printf("yaw: %0.2f, pitch: %0.2f, roll: %0.2f\n", yaw, pitch, roll);
+//    Serial.printf("yaw: %0.2f, pitch: %0.2f, roll: %0.2f\n", angs[0], angs[1], angs[2]);
 
 //    udp.beginPacket(udpAddr, udpPort);
 //    udp.printf(
