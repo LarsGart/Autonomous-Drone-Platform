@@ -18,5 +18,5 @@ def storeRxData(rxDataIn):
     # TODO: add stuff to write rx data to memory
     pass
 
-ib = ibus.IBUS(uart, sensor_types=NULL, servo_cb=storeRxData, do_log=False)
+ib = ibus.IBUS(uart, sensor_types=None, servo_cb=storeRxData, do_log=False)
 ib.start_loop()
