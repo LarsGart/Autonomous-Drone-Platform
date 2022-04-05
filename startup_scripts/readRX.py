@@ -1,4 +1,3 @@
-from asyncio.windows_events import NULL
 import time
 import serial
 import ibus
@@ -14,6 +13,16 @@ uart = serial.Serial(
 # Wait a second to let the port initialize
 time.sleep(1)
 
+'''
+Function: storeRxData
+
+Desc: reads incoming serial data from RX and stores it in RAM to be
+accessed by other scripts
+
+Args: rxDataIn - list of channel data from the RX in microseconds
+
+returns: None
+'''
 def storeRxData(rxDataIn):
     # TODO: add stuff to write rx data to memory
     pass
