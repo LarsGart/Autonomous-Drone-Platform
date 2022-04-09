@@ -28,5 +28,10 @@ def storeRxData(rxDataIn):
     pass
 
 # Start IBUS reading loop
-ib = ibus.IBUS(uart, sensor_types=None, servo_cb=storeRxData, do_log=False)
+ib = ibus.IBUS(
+    uart=uart,
+    sensor_types=None,
+    servo_cb=storeRxData,
+    do_log=False
+)
 ib.start_loop()
