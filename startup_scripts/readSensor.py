@@ -83,6 +83,20 @@ def readGyro():
     # TODO: write code lol
     pass
 
-if __name__ == "__main__":
+def storeSensorVals(vals):
     # TODO: write code lol
     pass
+
+if __name__ == "__main__":
+    # Initialize sensors
+    initAccelMag()
+    initGyro()
+
+    # Wait a second to let everything load
+    sleep(1)
+
+    # Read accel, mag, and gyro values and store them
+    while True:
+        accelMagVals = readAccelMag()
+        gyroVals = readGyro()
+        storeSensorVals(accelMagVals + gyroVals)
