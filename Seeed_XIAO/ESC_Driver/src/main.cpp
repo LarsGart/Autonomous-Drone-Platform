@@ -16,6 +16,7 @@ bool speedUpdated = false;
 void readSerialData() {
   if (Serial.available() > 0) {
     char c = Serial.read();
+    // '<' character initiates start of motor speed byte stream
     if (c == '<') {
       readingData = true;
       bytesRead = 0;
