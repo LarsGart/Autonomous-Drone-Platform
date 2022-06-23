@@ -25,12 +25,14 @@ uart2 = serial.Serial(
 def storeRxData(rxDataIn):
     print(rxDataIn)
 
-ib = ibus.IBUS(
-    uart=uart1,
-    sensor_types=[ibus.IBUSS_ALT],
-    servo_cb=storeRxData,
-    do_log=False
-)
+def initIBUS(cb):
+    ib = ibus.IBUS(
+        uart=uart1,
+        sensor_types=[ibus.IBUSS_ALT],
+        servo_cb=cb,
+        do_log=False
+    )
+    ib.start_loop()
 
 def main():
     while 1:
@@ -38,5 +40,5 @@ def main():
         print("Hello!")
 
 if __name__ == '__main__':
-    Process(target=ib.start_loop).start()
+    Process(target=initIBUS, args=storeRxData).start()
     Process(target=main).start()
