@@ -13,9 +13,9 @@ int bytesRead = 0;
 bool readingData = false;
 bool speedUpdated = false;
 
-void readSerialData() {
-  if (Serial.available() > 0) {
-    char c = Serial.read();
+void readSerial1Data() {
+  if (Serial1.available() > 0) {
+    char c = Serial1.read();
     // '<' character initiates start of motor speed byte stream
     if (c == '<') {
       readingData = true;
@@ -42,13 +42,13 @@ void setup() {
   m[2].attach(5);
   m[3].attach(9);
 
-  // Initialize serial port
-  Serial.begin(115200);
+  // Initialize Serial1 port
+  Serial1.begin(115200);
 }
 
 void loop() {
   // Read speed input if available
-  readSerialData();
+  readSerial1Data();
 
   // Convert byte array to motor speeds
   if (speedUpdated) {
