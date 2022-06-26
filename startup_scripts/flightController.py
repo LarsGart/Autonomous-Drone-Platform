@@ -64,14 +64,14 @@ def main():
         # Read RX values
         rxData = ib.readIBUS()
 
-        rxDataConv = [
-            (rxData[0] - 1500) / 500,
-            (rxData[1] - 1500) / 500,
-            (rxData[2] - 1000) / 1000,
-            (rxData[3] - 1500) / 500 
-        ]
-
-        if (rxData is not None):
+        if (rxData):
+            rxDataConv = [
+                (rxData[0] - 1500) / 500,
+                (rxData[1] - 1500) / 500,
+                (rxData[2] - 1000) / 1000,
+                (rxData[3] - 1500) / 500 
+            ]
+            
             # Generate motor speeds
             rawSpeeds = [
                 0.5 * rxDataConv[2] + 0.2 * rxDataConv[0] - 0.2 * rxDataConv[1] + 0.2 * rxDataConv[3],
