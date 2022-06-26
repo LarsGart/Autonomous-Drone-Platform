@@ -1,4 +1,4 @@
-'''
+r'''
 Author: Jerin Abraham
 
 This is the main flight controller script
@@ -87,5 +87,4 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print("Exited flight controller")
         outputSpeeds([1000] * 4)
