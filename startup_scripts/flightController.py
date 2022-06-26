@@ -50,14 +50,14 @@ uart2 = serial.Serial(
 ib = IBUS(uart=uart1)
 
 def outputSpeeds(speeds):
-    uart2.write(bytearray(
+    uart2.write(bytearray([
         60, # Sends a '<'
         speeds[0] >> 8, speeds[0] & 255,
         speeds[1] >> 8, speeds[1] & 255,
         speeds[2] >> 8, speeds[2] & 255,
         speeds[3] >> 8, speeds[3] & 255,
         62 # Sends a '>'
-    ))
+    ]))
 
 def main():
     while 1:
