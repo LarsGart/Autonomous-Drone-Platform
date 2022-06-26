@@ -88,4 +88,4 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         print("Exited flight controller")
-        outputSpeeds([0] * 4)
+        outputSpeeds([1000] * 4)
