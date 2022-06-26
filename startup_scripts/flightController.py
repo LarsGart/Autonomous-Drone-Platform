@@ -80,8 +80,7 @@ def main():
                 0.5 * rxDataConv[2] - 0.2 * rxDataConv[0] - 0.2 * rxDataConv[1] - 0.2 * rxDataConv[3]
             ]
             outSpeeds = clip([1000 * i + 1000 for i in rawSpeeds], 1000, 2000)
-            print(outSpeeds)
-            # outputSpeeds(list(map(int, outSpeeds)))
+            outputSpeeds(list(map(int, outSpeeds)))
 
 if __name__ == '__main__':
     sleep(1)
