@@ -30,20 +30,15 @@ import serial
 from ibus import IBUS
 
 # Define the UARTs
+
 uart1 = serial.Serial(
     port="/dev/ttyTHS1",
-    baudrate=115200,
-    bytesize=serial.EIGHTBITS,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE
+    baudrate=115200
 )
 
 uart2 = serial.Serial(
     port="/dev/ttyS0",
-    baudrate=115200,
-    bytesize=serial.EIGHTBITS,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE
+    baudrate=115200
 )
 
 # Instantiate ibus
@@ -65,6 +60,7 @@ def main():
         rxData = ib.readIBUS()
 
         if (rxData):
+            # Convert inputs to [-1, 1] range ([0, 1] for throttle) range for usability
             rxDataConv = [
                 (rxData[0] - 1500) / 500,
                 (rxData[1] - 1500) / 500,
@@ -79,6 +75,8 @@ def main():
                 0.2 * rxDataConv[2] - 0.1 * rxDataConv[0] + 0.1 * rxDataConv[1] + 0.1 * rxDataConv[3],
                 0.2 * rxDataConv[2] - 0.1 * rxDataConv[0] - 0.1 * rxDataConv[1] - 0.1 * rxDataConv[3]
             ]
+
+            # Convert speeds to [1000, 2000] range for motor ouputs
             outSpeeds = clip([1000 * i + 1000 for i in rawSpeeds], 1000, 2000)
             outputSpeeds(list(map(int, outSpeeds)))
 
