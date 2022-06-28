@@ -146,6 +146,7 @@ while True:
                 #cv2.circle(frame,center=(int(xvals[index]),int(yvals[index])), radius=2, color=(255, 0, 0), thickness=4)
                 try:
                     cv2.line(frame, (int(xvals[index]),int(yvals[index])), (int(xvals[index+1]),int(yvals[index+1])), color=(255,0,0), thickness=4)
+                    cv2.putText(frame, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
                     
                 except:
                     pass
