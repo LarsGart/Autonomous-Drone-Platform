@@ -33,7 +33,7 @@ from time import sleep
 ADDR_ACCELMAG = 0x1F
 ADDR_GYRO = 0x21
 
-class OrienationSensor:
+class OrientationSensor:
 
     # This initializes the acceleromter, magnetomer, and gyroscope
     def __init__(self, I2CBus):
