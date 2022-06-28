@@ -35,8 +35,8 @@ ADDR_GYRO = 0x21
 
 class OrienationSensor:
 
-    # This function initializes the acceleromter, magnetomer, and gyroscope
-    def initSensor(self, I2CBus):
+    # This initializes the acceleromter, magnetomer, and gyroscope
+    def __init__(self, I2CBus):
         self.bus = SMBus(I2CBus)
 
         '''
@@ -93,12 +93,12 @@ class OrienationSensor:
 
         # Convert data into readable format
         sensorData = [
-            ((rawAccelMagData[1] << 8) | rawAccelMagData[2]) >> 2, # Accel x
-            ((rawAccelMagData[3] << 8) | rawAccelMagData[4]) >> 2, # Accel y
-            ((rawAccelMagData[5] << 8) | rawAccelMagData[6]) >> 2, # Accel z
+            (((rawAccelMagData[1] << 8) | rawAccelMagData[2]) >> 2) * 0.000488 * 9.80665, # Accel x
+            (((rawAccelMagData[3] << 8) | rawAccelMagData[4]) >> 2) * 0.000488 * 9.80665, # Accel y
+            (((rawAccelMagData[5] << 8) | rawAccelMagData[6]) >> 2) * 0.000488 * 9.80665, # Accel z
             (rawAccelMagData[7] << 8) | rawAccelMagData[8], # Mag x
             (rawAccelMagData[9] << 8) | rawAccelMagData[10], # Mag y
-            (rawAccelMagData[11] << 8) | rawAccelMagData[12] # Mag z
+            (rawAccelMagData[11] << 8) | rawAccelMagData[12], # Mag z
             (rawGyroData[1] << 8) | rawGyroData[2], # Gyro x
             (rawGyroData[3] << 8) | rawGyroData[4], # Gyro y
             (rawGyroData[5] << 8) | rawGyroData[6] # Gyro z
