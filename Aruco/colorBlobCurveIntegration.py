@@ -87,3 +87,83 @@ def bezier_curve(points, nTimes=50):
     yvals = np.dot(yPoints, polynomial_array)
 
     return xvals, yvals
+
+vs = VideoStream(src=0).start()
+
+frameList = []
+numFrames = 0
+
+
+while True:
+    # grab the frame from the threaded video stream and resize it to have a maximum width of 1000 pixels
+    frame = vs.read()
+    frame = cv2.flip(frame, 1)
+    
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+     
+    lower_green = np.array([50,100,50])
+    upper_green = np.array([70,255,255])
+ 
+    # preparing the mask to overlay
+    mask = cv2.inRange(hsv, lower_green, upper_green)
+     
+    # The black region in the mask has the value of 0,
+    # so when multiplied with original image removes all non-blue regions
+    result = cv2.bitwise_and(frame, frame, mask = mask)
+    
+    # convert image to grayscale image
+    gray_image = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
+     
+    # convert the grayscale image to binary image
+    ret,thresh = cv2.threshold(gray_image,127,255,0)
+    
+    # calculate moments of binary image
+    M = cv2.moments(thresh)
+
+    cX = int(M["m10"] / (M["m00"]+1))
+    cY = int(M["m01"] / (M["m00"]+1))
+    
+    frameList.append((cX,cY))
+    
+    cv2.circle(frame, (cX, cY), 5, (255, 255, 255), -1)
+    cv2.putText(frame, "centroid", (cX - 25, cY - 25),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+    
+    if len(frameList) >= 2 and len(frameList) % 1 == 0:
+        for index, f in enumerate(frameList):
+            #cv2.circle(frame, f, 4, (0, 255, 247), -1)
+            #cv2.line(frame, frameList[index], frameList[index + 1], (0, 255, 0), 2)
+            cv2.circle(frame, frameList[index], radius=2, color=(0, 255, 0), thickness=10)
+        
+    if len(frameList) >= 50:
+        xpoints = [i[0] for i in frameList]
+        ypoints = [i[1] for i in frameList]
+        
+        bezierParameters = get_bezier_parameters(xpoints, ypoints, degree=8)
+        
+        xvals, yvals = bezier_curve(bezierParameters, nTimes=100)
+        
+        for index, curvePiece in enumerate(xvals):
+                #cv2.circle(frame,center=(int(xvals[index]),int(yvals[index])), radius=2, color=(255, 0, 0), thickness=4)
+                try:
+                    cv2.line(frame, (int(xvals[index]),int(yvals[index])), (int(xvals[index+1]),int(yvals[index+1])), color=(255,0,0), thickness=4)
+                    
+                except:
+                    pass
+                
+    if len(frameList) > 50:
+        frameList.pop(0)
+    # show the output frame
+    cv2.imshow("Frame", frame)
+    
+    numFrames += 1
+    cv2.imshow('frame', frame)
+    #cv2.imshow('mask', mask)
+    #cv2.imshow('result', result)
+    #cv2.imshow('gray_image',gray_image)
+    
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord("q"):
+        break
+
+cv2.destroyAllWindows()
+vs.stop()
