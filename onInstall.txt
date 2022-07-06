@@ -1,0 +1,25 @@
+System update:
+sudo apt-get update && sudo apt-get upgrade && sudo apt-get clean
+
+Reboot the system:
+sudo reboot
+
+Install pip:
+sudo apt-get install python3-pip
+
+Disable nvgetty service
+sudo systemctl stop nvgetty.service
+sudo systemctl disable nvgetty.service
+
+Comment out APPEND line in /boot/extlinux/extlinux.conf file
+sudo vim /boot/extlinux/extlinux.conf
+
+Clone Autonomous-Drone-Platform repo
+TODO: Put commands here
+
+Install pyserial
+pip3 install pyserial
+
+Install libi2c
+git clone https://github.com/amaork/libi2c.git
+cd sudo python setup.py install
