@@ -32,8 +32,37 @@ import imufusion
 from ibus import IBus
 from orientationSensor import OrientationSensor
 
-# Define sensor sample rate
+################ DRONE VARS #################
+
+# Sensor sample rate
 sampleRate = 100
+
+# Throttle scaling
+throttleScale = 0.5
+
+# Mag calibration info generated from spherical fitting
+# TODO: Implement onboard magnetometer calibration
+r, mx0, my0, mz0 = 50.105256281553686, -68.08280561, -86.10432325, 65.38094172
+
+#################### PID ####################
+
+pidSetPoints = [0, 0, 0]
+
+# PID errors
+err = [0, 0, 0]
+deltaErr = [0, 0, 0]
+errSum = [0, 0, 0]
+prevErr = [0, 0, 0]
+
+# PID coefficients [Yaw, Pitch, Roll]
+kP = [1, 1.3, 1.3]
+kI = [0, 0, 0]
+kD = [0, 30, 30]
+
+# Define how much of an effect the PID has on motor speeds
+pidLimit = 200
+
+#############################################
 
 # Define the UARTs
 uart1 = serial.Serial(
@@ -56,36 +85,8 @@ sensor = OrientationSensor('/dev/i2c-0')
 offset = imufusion.Offset(sampleRate)
 ahrs = imufusion.Ahrs()
 
-# Define last rx reading
-rxData = [1500, 1500, 1000, 1500]
+# Define missed rx readings
 rxMissedReadings = 0
-
-# Mag calibration info generated from spherical fitting
-# TODO: Implement onboard magnetometer calibration
-r, mx0, my0, mz0 = 50.105256281553686, -68.08280561, -86.10432325, 65.38094172
-
-################## PID VARS ##################
-
-pidSetPoints = [0, 0, 0]
-
-# PID errors
-err = [0, 0, 0]
-deltaErr = [0, 0, 0]
-errSum = [0, 0, 0]
-prevErr = [0, 0, 0]
-
-# PID coefficients [Yaw, Pitch, Roll]
-kP = [1, 1.3, 1.3]
-kI = [0, 0, 0]
-kD = [0, 30, 30]
-
-# Define how much of an effect the PID has on motor speeds
-pidLimit = 200
-
-##############################################
-
-# Actual drone yaw, pitch, roll
-droneAngs = [0, 0, 0]
 
 # Split speeds into MSB and LSB for each speed and send byte stream to speed controller via UART2
 def outputSpeeds(speeds):
@@ -102,12 +103,48 @@ def outputSpeeds(speeds):
 def filterRxIn(rxInput):
     return ((rxInput > 1492 and rxInput < 1508) and 1500 or rxInput)
 
-def calcErr():
-    pass
+# Calculate pid errors
+def calcErr(droneAngs):
+    for i in range(3):
+        # Calculate P error
+        err[i] = droneAngs[i] - pidSetPoints[i]
 
-def calcPID():
+        # Calculate I error if I coefficient is > 0
+        if (kI[i] > 0):
+            rawErrSum = errSum[i] + err[i]
+
+            errSum[i] = np.clip(rawErrSum, -pidLimit / kI[i], pidLimit / kI[i])
+        
+        # Calculate D error
+        deltaErr[i] = err[i] - prevErr[i]
+
+        # Update previous error
+        prevErr[i] = err[i]
+
+def calcPID(throttle):
     pid = [0, 0, 0]
-    return [1000] * 4
+    mOut = [1000] * 4
+
+    # Scale throttle to prevent drone from going into orbit
+    throttleMap = throttleScale * throttle + 1000 * (1 - throttleScale)
+
+    # Calculate PID if there's throttle
+    if (throttle > 1012):
+        for i in range(3):
+            pid[i] = (kP[i] * err[i]) + (kI[i] * errSum[i]) + (kD[i] * deltaErr[i])
+        
+    # Constrain PID values
+    pid = np.clip(pid, -pidLimit, pidLimit)
+
+    # Calculate motor speeds
+    mOut = list(map(int, [
+        throttleMap + pid[0] - pid[1] - pid[2],
+        throttleMap - pid[0] + pid[1] - pid[2],
+        throttleMap + pid[0] + pid[1] + pid[2],
+        throttleMap - pid[0] - pid[1] + pid[2]
+    ]))
+
+    return mOut
 
 # Calculate true drone orientation
 def getOrientation(tPrev):
@@ -129,11 +166,13 @@ def getOrientation(tPrev):
     eul = ahrs.quaternion.to_euler()
 
     # Calculate true yaw, pitch, roll
-    droneAngs[0] = gyr[2]
-    droneAngs[1] = (eul[2] < 0 and 180 + eul[2] or eul[2] - 180)
-    droneAngs[2] = -eul[1]
+    droneAngs = [
+        gyr[2],
+        (eul[0] < 0 and 180 + eul[0] or eul[0] - 180),
+        -eul[1]
+    ]
 
-    return tCurr
+    return tCurr, droneAngs
 
 # Read receiver and handle missed inputs
 def getControlInputs():
@@ -142,7 +181,7 @@ def getControlInputs():
 
     # Only update rxData if rxIn isn't None and increment rxMissedReadings if it is
     if (rxIn):
-        rxData = rxIn
+        rxData = np.clip(rxIn, 1000, 2000)
         rxMissedReadings = 0
     else:
         rxMissedReadings += 1
@@ -159,6 +198,8 @@ def getControlInputs():
         (rxData[3] - 1500) / 500 
     ]
 
+    return rxData
+
 def main():
     # Initialize filter
     ahrs.settings = imufusion.Settings(
@@ -171,23 +212,24 @@ def main():
     tPrev = time()
     while 1:
         # Get drone orientation
-        tPrev = getOrientation(tPrev)
+        tPrev, droneAngs = getOrientation(tPrev)
 
         # Get receiver input
-        getControlInputs()
+        rxData = getControlInputs()
 
         # Create pid set points
         pidSetPoints[0] = 0.12 * filterRxIn(rxData[3]) - 180
         pidSetPoints[1] = -0.06 * filterRxIn(rxData[1]) + 90
-        pidSetPoints[2] = -0.06 * filterRxIn(rxData[1]) + 90
-
-        print(droneAngs)
+        pidSetPoints[2] = -0.06 * filterRxIn(rxData[0]) + 90
 
         # Calculate pid errors
-        calcErr()
+        calcErr(droneAngs)
 
         # Calculate PID outputs
-        outSpeeds = calcPID()
+        outSpeeds = calcPID(rxData[2])
+
+        # Output motor speeds
+        outputSpeeds(outSpeeds)
         
         # # Generate motor speeds
         # rawSpeeds = [
