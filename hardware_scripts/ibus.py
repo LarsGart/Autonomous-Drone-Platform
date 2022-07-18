@@ -13,7 +13,7 @@ PROTOCOL_CHANNELS = 14
 PROTOCOL_OVERHEAD = 3
 PROTOCOL_LENGTH = 0x20
 
-class IBUS():
+class IBus():
     def __init__(self, uart):
         self.uart = uart
 
@@ -25,8 +25,8 @@ class IBUS():
 
     def checksum(self, arr, initial):
         sum = initial
-        for a in arr:
-            sum += a
+        for val in arr:
+            sum += val
         checksum = 0xFFFF - sum
         chA = checksum >> 8
         chB = checksum & 0xFF
@@ -48,6 +48,6 @@ class IBUS():
                 chA2, chB2 = self.checksum(dataArr[:-2], expectedLen + 1)
                 if (chA1 == chA2 and chB1 == chB2):
                     if (cmd == PROTOCOL_SERVO):
-                        return [dataArr[2 * i + 1] | (dataArr[2 * i + 2] << 8) for i in range(PROTOCOL_CHANNELS)]
+                        return [(dataArr[2 * i + 2] << 8) | dataArr[2 * i + 1] for i in range(PROTOCOL_CHANNELS)]
         
         return None

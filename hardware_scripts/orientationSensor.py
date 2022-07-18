@@ -26,13 +26,21 @@ https://www.nxp.com/docs/en/data-sheet/FXOS8700CQ.pdf
 Author: Jerin Abraham
 """
 
-from time import sleep
-import numpy as np
-import ctypes
-import pylibi2c
 
-_ADDR_ACCELMAG = 0x1F
-_ADDR_GYRO = 0x21
+import numpy as np
+import pylibi2c
+from struct import unpack
+from time import sleep
+
+_ADDR_ACCELMAG = 0x1F # I2C address of the FXOS8700CQ
+_ADDR_GYRO = 0x21 # I2C address of the FXAS21002
+
+_ACCEL_4G_CONV = 0.000488 # 0.488mg / LSB
+_MAG_1200UT_CONV = 0.1 # 0.1uT / LSB
+_GYRO_250DPS_CONV = 0.0078125 # 7.8125mdps / LSB
+_EARTH_GRAVITY = 9.80655 # in m/s^2
+
+_ACCEL_CONV = _ACCEL_4G_CONV * _EARTH_GRAVITY # Increase performance by 1000% by calculating this beforehand
 
 class OrientationSensor:
 
@@ -101,28 +109,27 @@ class OrientationSensor:
         # Read 13 bytes (1 status byte + 6 accel bytes + 6 mag bytes) from accel + mag
         rawAccelMagData = self.accelmag.ioctl_read(0x00, 13)
 
-        # Convert raw accel data to signed real world values
-        accelData = 0.000488 * 9.80665 * np.array([ # 0.488mg / LSB
+        # Convert raw accel and mag data to signed real world values
+        accelData = np.multiply(_ACCEL_CONV, np.array([
             self.__twosComp(((rawAccelMagData[1] << 8) | rawAccelMagData[2]) >> 2, 14),
             self.__twosComp(((rawAccelMagData[3] << 8) | rawAccelMagData[4]) >> 2, 14),
             self.__twosComp(((rawAccelMagData[5] << 8) | rawAccelMagData[6]) >> 2, 14)
-        ])
+        ]))
 
-        # Convert raw mag data to signed real world values
-        magData = 0.1 * np.array([ # 0.1uT / LSB 
-            self.__twosComp((rawAccelMagData[7] << 8) | rawAccelMagData[8], 16),
-            self.__twosComp((rawAccelMagData[9] << 8) | rawAccelMagData[10], 16),
-            self.__twosComp((rawAccelMagData[11] << 8) | rawAccelMagData[12], 16)
-        ])
+        magData = np.multiply(_MAG_1200UT_CONV, np.array([
+            unpack('>h', rawAccelMagData[7:9])[0],
+            unpack('>h', rawAccelMagData[9:11])[0],
+            unpack('>h', rawAccelMagData[11:13])[0]
+        ]))
 
         # Read 7 bytes (1 status byte + 6 gyro bytes) from gyro
         rawGyroData = self.gyro.ioctl_read(0x00, 7)
 
         # Convert raw gyro data to signed real world values
-        gyroData = 0.0078125 * np.array([ # 7.8125mdps / LSB
-            self.__twosComp((rawGyroData[1] << 8) | rawGyroData[2], 16),
-            self.__twosComp((rawGyroData[3] << 8) | rawGyroData[4], 16),
-            self.__twosComp((rawGyroData[5] << 8) | rawGyroData[6], 16)
-        ])
+        gyroData = np.multiply(_GYRO_250DPS_CONV, np.array([
+            unpack('>h', rawGyroData[1:3])[0],
+            unpack('>h', rawGyroData[3:5])[0],
+            unpack('>h', rawGyroData[5:7])[0]
+        ]))
 
         return accelData, magData, gyroData
