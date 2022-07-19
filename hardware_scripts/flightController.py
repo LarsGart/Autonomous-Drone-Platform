@@ -121,8 +121,9 @@ def calcErr(droneAngs):
         # Update previous error
         prevErr[i] = err[i]
 
+# Calculate motor speeds using PID
 def calcPID(throttle):
-    pid = [0, 0, 0]
+    pid = [0] * 3
     mOut = [1000] * 4
 
     # Scale throttle to prevent drone from going into orbit
@@ -230,18 +231,6 @@ def main():
 
         # Output motor speeds
         outputSpeeds(outSpeeds)
-        
-        # # Generate motor speeds
-        # rawSpeeds = [
-        #     0.2 * rxDataConv[2] + 0.1 * rxDataConv[0] - 0.1 * rxDataConv[1] + 0.1 * rxDataConv[3],
-        #     0.2 * rxDataConv[2] + 0.1 * rxDataConv[0] + 0.1 * rxDataConv[1] - 0.1 * rxDataConv[3],
-        #     0.2 * rxDataConv[2] - 0.1 * rxDataConv[0] + 0.1 * rxDataConv[1] + 0.1 * rxDataConv[3],
-        #     0.2 * rxDataConv[2] - 0.1 * rxDataConv[0] - 0.1 * rxDataConv[1] - 0.1 * rxDataConv[3]
-        # ]
-
-        # # Convert speeds to [1000, 2000] range for motor ouputs
-        # outSpeeds = np.clip([1000 * i + 1000 for i in rawSpeeds], 1000, 2000)
-        # outputSpeeds(list(map(int, outSpeeds)))
 
         sleep(1 / sampleRate)
 
