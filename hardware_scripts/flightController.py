@@ -55,9 +55,9 @@ errSum = [0, 0, 0]
 prevErr = [0, 0, 0]
 
 # PID coefficients [Yaw, Pitch, Roll]
-kP = [1, 1.3, 1.3]
+kP = [1, 1, 1]
 kI = [0, 0, 0]
-kD = [0, 30, 30]
+kD = [0, 0, 0]
 
 # Define how much of an effect the PID has on motor speeds
 pidLimit = 200
@@ -177,6 +177,9 @@ def getOrientation(tPrev):
 
 # Read receiver and handle missed inputs
 def getControlInputs():
+    # Flush serial buffer
+    uart1.reset_input_buffer()
+
     # Read RX values
     rxIn = ib.readIBUS()
 
@@ -212,11 +215,11 @@ def main():
 
     tPrev = time()
     while 1:
-        # Get drone orientation
-        tPrev, droneAngs = getOrientation(tPrev)
-
         # Get receiver input
         rxData = getControlInputs()
+
+        # Get drone orientation
+        tPrev, droneAngs = getOrientation(tPrev)
 
         # Create pid set points
         pidSetPoints[0] = 0.12 * filterRxIn(rxData[3]) - 180
