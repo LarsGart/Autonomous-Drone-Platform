@@ -23,6 +23,7 @@ MOTOR MAPPINGS
 
 # Python modules
 import serial
+import socket
 import numpy as np
 
 from time import sleep, time
@@ -85,7 +86,8 @@ sensor = OrientationSensor('/dev/i2c-0')
 offset = imufusion.Offset(sampleRate)
 ahrs = imufusion.Ahrs()
 
-# Define missed rx readings
+# Define rx info
+rxData = [1500, 1500, 1000, 1500]
 rxMissedReadings = 0
 
 # Split speeds into MSB and LSB for each speed and send byte stream to speed controller via UART2
@@ -148,11 +150,7 @@ def calcPID(throttle):
     return mOut
 
 # Calculate true drone orientation
-def getOrientation(tPrev):
-    # Get time between sensor readings
-    tCurr = time()
-    tDelta = tCurr - tPrev
-
+def getOrientation(tDelta):
     # Read sensor
     acc, mag, gyr = sensor.readSensor()
 
@@ -173,10 +171,13 @@ def getOrientation(tPrev):
         -eul[1]
     ]
 
-    return tCurr, droneAngs
+    return droneAngs
 
 # Read receiver and handle missed inputs
 def getControlInputs():
+    global rxMissedReadings
+    global rxData
+
     # Flush serial buffer
     uart1.reset_input_buffer()
 
@@ -202,8 +203,6 @@ def getControlInputs():
         (rxData[3] - 1500) / 500 
     ]
 
-    return rxData
-
 def main():
     # Initialize filter
     ahrs.settings = imufusion.Settings(
@@ -215,11 +214,16 @@ def main():
 
     tPrev = time()
     while 1:
+        # Get time between sensor readings
+        tCurr = time()
+        tDelta = tCurr - tPrev
+        tPrev = tCurr
+
         # Get receiver input
         rxData = getControlInputs()
 
         # Get drone orientation
-        tPrev, droneAngs = getOrientation(tPrev)
+        droneAngs = getOrientation(tDelta)
 
         # Create pid set points
         pidSetPoints[0] = 0.12 * filterRxIn(rxData[3]) - 180
