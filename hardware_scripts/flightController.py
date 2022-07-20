@@ -282,5 +282,8 @@ if __name__ == '__main__':
         # Close sensor
         del sensor
 
+        # Close socket
+        sock.close()
+
         # Print PID values
         print(f"P = {kP}\nI = {kI}\nD = {kD}")
