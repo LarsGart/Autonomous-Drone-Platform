@@ -111,7 +111,7 @@ def outputSpeeds(speeds):
 def filterRxIn(rxInput):
     return ((rxInput > 1492 and rxInput < 1508) and 1500 or rxInput)
 
-# Calculate pid errors
+# Calculate PID errors
 def calcErr(droneAngs):
     for i in range(3):
         # Calculate P error
@@ -128,6 +128,14 @@ def calcErr(droneAngs):
 
         # Update previous error
         prevErr[i] = err[i]
+
+# Reset PID errors
+def resetErr():
+    for i in range(3):
+        err[i] = 0
+        errSum[i] = 0
+        deltaErr[i] = 0
+        prevErr[i] = 0
 
 # Calculate motor speeds using PID
 def calcPID(throttle):
@@ -160,18 +168,13 @@ def readSocketPID():
     try:
         data, _ = sock.recvfrom(64)
         msg = data.decode().strip()
-        msgre = re.findall('^[pid][123]=[0-9]+[.][0-9]+$', msg)
-
-        if msgre:
-            arr = (msg[0] == 'p' and kP or msg[0] == 'i' and kI or kD)
-            arr[int(msg[1]) - 1] = float(msg[3:])
-
-            # Reset error values
-            for i in range(3):
-                err[i] = 0
-                deltaErr[i] = 0
-                errSum[i] = 0
-                prevErr[i] = 0
+        if (msg == 'r'):
+            resetErr()
+        else:
+            if re.findall('^[pid][123]=[0-9]+[.][0-9]+$', msg):
+                arr = (msg[0] == 'p' and kP or msg[0] == 'i' and kI or kD)
+                arr[int(msg[1]) - 1] = float(msg[3:])
+                resetErr()
 
     except BlockingIOError:
         pass
