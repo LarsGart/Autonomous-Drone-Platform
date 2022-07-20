@@ -22,6 +22,7 @@ MOTOR MAPPINGS
 '''
 
 # Python modules
+import re
 import serial
 import socket
 import numpy as np
@@ -90,6 +91,11 @@ ahrs = imufusion.Ahrs()
 rxData = [1500, 1500, 1000, 1500]
 rxMissedReadings = 0
 
+# Instantiate socket
+sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+sock.setblocking(False)
+sock.bind(('0.0.0.0', 44444))
+
 # Split speeds into MSB and LSB for each speed and send byte stream to speed controller via UART2
 def outputSpeeds(speeds):
     uart2.write(bytearray([
@@ -140,14 +146,35 @@ def calcPID(throttle):
     pid = np.clip(pid, -pidLimit, pidLimit)
 
     # Calculate motor speeds
-    mOut = list(map(int, [
-        throttleMap + pid[0] - pid[1] - pid[2],
-        throttleMap - pid[0] + pid[1] - pid[2],
-        throttleMap + pid[0] + pid[1] + pid[2],
-        throttleMap - pid[0] - pid[1] + pid[2]
-    ]))
+    mOut = [
+        int(throttleMap + pid[0] - pid[1] - pid[2]),
+        int(throttleMap - pid[0] + pid[1] - pid[2]),
+        int(throttleMap + pid[0] + pid[1] + pid[2]),
+        int(throttleMap - pid[0] - pid[1] + pid[2])
+    ]
 
     return mOut
+
+# Update PID values with values received from the socket and reset the errors
+def readSocketPID():
+    try:
+        data, _ = sock.recvfrom(64)
+        msg = data.decode().strip()
+        msgre = re.findall('^[pid][123]=[0-9]+[.][0-9]+$', msg)
+
+        if msgre:
+            arr = (msg[0] == 'p' and kP or msg[0] == 'i' and kI or kD)
+            arr[int(msg[1]) - 1] = float(msg[3:])
+
+            # Reset error values
+            for i in range(3):
+                err[i] = 0
+                deltaErr[i] = 0
+                errSum[i] = 0
+                prevErr[i] = 0
+
+    except BlockingIOError:
+        pass
 
 # Calculate true drone orientation
 def getOrientation(tDelta):
@@ -220,7 +247,10 @@ def main():
         tPrev = tCurr
 
         # Get receiver input
-        rxData = getControlInputs()
+        getControlInputs()
+
+        # Get PID values from socket if there's an update
+        readSocketPID()
 
         # Get drone orientation
         droneAngs = getOrientation(tDelta)
@@ -251,3 +281,6 @@ if __name__ == '__main__':
 
         # Close sensor
         del sensor
+
+        # Print PID values
+        print(f"P = {kP}\nI = {kI}\nD = {kD}")
