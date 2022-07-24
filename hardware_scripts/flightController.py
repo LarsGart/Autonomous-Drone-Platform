@@ -57,9 +57,9 @@ errSum = [0, 0, 0]
 prevErr = [0, 0, 0]
 
 # PID coefficients [Yaw, Pitch, Roll]
-kP = [1, 1.25, 1.25]
-kI = [0, 0.05, 0.05]
-kD = [0, 0, 0]
+kP = [1, 2, 2]
+kI = [0, 0, 0]
+kD = [0, 15, 15]
 
 # Define how much of an effect the PID has on motor speeds
 pidLimit = 200
