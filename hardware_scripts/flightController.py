@@ -57,9 +57,9 @@ errSum = [0, 0, 0]
 prevErr = [0, 0, 0]
 
 # PID coefficients [Yaw, Pitch, Roll]
-kP = [1, 2, 2]
-kI = [0, 0, 0]
-kD = [0, 15, 15]
+kP = [1, 1.5, 1.5]
+kI = [0, 0.05, 0.05]
+kD = [0, 25, 25]
 
 # Define how much of an effect the PID has on motor speeds
 pidLimit = 200
@@ -260,8 +260,8 @@ def main():
 
         # Create pid set points
         pidSetPoints[0] = 0.12 * filterRxIn(rxData[3]) - 180
-        pidSetPoints[1] = -0.06 * filterRxIn(rxData[1]) + 90
-        pidSetPoints[2] = -0.06 * filterRxIn(rxData[0]) + 90
+        pidSetPoints[1] = -0.03 * filterRxIn(rxData[1]) + 45
+        pidSetPoints[2] = -0.03 * filterRxIn(rxData[0]) + 45
 
         # Calculate pid errors
         calcErr(droneAngs)
