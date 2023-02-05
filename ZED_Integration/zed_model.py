@@ -1,3 +1,6 @@
+'''
+Condensing testMotorsandSensors.py
+'''
 import pyzed.sl as sl
 
 import cv2
@@ -5,11 +8,6 @@ import numpy as np
 import math
 import serial
 import logging
-
-
-'''
-Condensing testMotorsandSensors.py
-'''
 
 
 logging.basicConfig(filename='zed_model.log', filemode='w')
@@ -50,40 +48,36 @@ class TimestampHandler:
 Base Zed Model to instantiate
 '''
 class ZedModel():
-	def __init__():
-		self.zed = sl.Camera()
-		self.init_params = sl.InitParameters()
-		self.init_params.depth_mode = sl.DEPTH_MODE.NONE
+    def __init__(self):
+        self.zed = sl.Camera()
+        self.init_params = sl.InitParameters()
+        self.init_params.depth_mode = sl.DEPTH_MODE.NONE
         self.info = self.zed.get_camera_information()
         self.cam_model = self.info.camera_model
-
         self.ts_handler = TimestampHandler()
+        self.logger = logging.getLogger()
+    
+    def openCamera(self):
+        err = self.zed.open(self.init_params)
+        if err != sl.ERROR_CODE.SUCCESS:
+            self.logger.warning(repr(err))
+            self.zed.close()
 
-		self.logger = logging.getLogger()
-
-	def openCamera(self):
-		err = self.zed.open(self.init_params)
-		if err != sl.ERROR_CODE.SUCCESS:
-			self.logger.warning(repr(err))
-			self.zed.close()
-
-	def get_camera_configuration(self):
-		self.logger.info(info)
-        self.logger.info("Camera Model: " + str(cam_model))
-        self.logger.info("Serial Number: " + str(info.serial_number))
-        self.logger.info("Camera Firmware: " + str(info.camera_configuration.firmware_version))
-        self.logger.info("Sensors Firmware: " + str(info.sensors_configuration.firmware_version))
+    def get_camera_configuration(self):
+        self.logger.info(info)
+        self.logger.info("Camera Model: " + str(self.cam_model))
+        self.logger.info("Serial Number: " + str(self.info.serial_number))
+        self.logger.info("Camera Firmware: " + str(self.info.camera_configuration.firmware_version))
+        self.logger.info("Sensors Firmware: " + str(self.info.sensors_configuration.firmware_version))
 
     def get_sensor_configuration(self):
         sensors = ['accelerometer', 'gyroscope', 'magnetometer', 'barometer']
 
         for sensor in sensors:
             sensor_field = 'sensors_' + sensor + '_configuration'
-            sensor_config = info.sensor_field
+            sensor_config = self.info.__dict__[sensor_field]
 
-            sensor_properties = []
-
-             if sensor_config.is_available:
+            if sensor_config.is_available:
                 self.logger.info("Sensor type: " + str(sensor_config.sensor_type))
                 self.logger.info("Max rate: " + str(sensor_config.sampling_rate) + " " + str(sl.SENSORS_UNIT.HERTZ))
                 self.logger.info("Range: " + str(sensor_config.sensor_range) + " " + str(sensor_config.sensor_unit))
@@ -91,11 +85,11 @@ class ZedModel():
                 try:
                     self.logger.info("Noise Density: " + str(sensor_config.noise_density) + " " + str(sensor_config.sensor_unit) + "Hz")
                 except:
-                    raiseValueError('NaN values in Noise Density')                    
+                    ValueError('NaN values in Noise Density')                    
                 try:
                     self.logger.info("Random Walk: " + str(sensor_config.random_walk) + " " + str(sensor_config.sensor_unit) + "Hz")
                 except:
-                    raiseValueError('NaN values in Random Walk')
+                    ValueError('NaN values in Random Walk')
     
     def get_sensor_data(self):
         self.sensors_data = sl.SensorsData()
