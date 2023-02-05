@@ -64,7 +64,7 @@ class ZedModel():
             self.zed.close()
 
     def get_camera_configuration(self):
-        self.logger.info(info)
+        self.logger.info(self.info)
         self.logger.info("Camera Model: " + str(self.cam_model))
         self.logger.info("Serial Number: " + str(self.info.serial_number))
         self.logger.info("Camera Firmware: " + str(self.info.camera_configuration.firmware_version))
@@ -84,21 +84,47 @@ class ZedModel():
                 self.logger.info("Resolution: " + str(sensor_config.resolution) + " " + str(sensor_config.sensor_unit))
                 try:
                     self.logger.info("Noise Density: " + str(sensor_config.noise_density) + " " + str(sensor_config.sensor_unit) + "Hz")
-                except:
-                    ValueError('NaN values in Noise Density')                    
-                try:
                     self.logger.info("Random Walk: " + str(sensor_config.random_walk) + " " + str(sensor_config.sensor_unit) + "Hz")
                 except:
-                    ValueError('NaN values in Random Walk')
+                    ValueError('NaN values for noise density and random walk')
     
     def get_sensor_data(self):
+        self.timestamp_handler = TimestampHandler()
         self.sensors_data = sl.SensorsData()
 
-        quaternion = self.sensors_data.get_imu_data().get_pose().get_orientation().get()
-        self.logger.info(" \t Orientation: [ Ox: {0}, Oy: {1}, Oz {2}, Ow: {3} ]".format(quaternion[0], quaternion[1], quaternion[2], quaternion[3]))
+        # Checks if the sensors_data is available and if the timestamp is new
+        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS :
+            if self.timestamp_handler.is_new(self.sensors_data.get_imu_data()):
+                
+                # Filtered orientation quaternion
+                quaternion = self.sensors_data.get_imu_data().get_pose().get_orientation().get()
+                self.logger.info(" \t Orientation: [ Ox: {0}, Oy: {1}, Oz {2}, Ow: {3} ]".format(quaternion[0], 
+                                                                                                 quaternion[1], 
+                                                                                                 quaternion[2], 
+                                                                                                 quaternion[3]))
+                # Linear acceleration
+                linear_acceleration = self.sensors_data.get_imu_data().get_linear_acceleration()
+                self.logger.info(" \t Acceleration: [ {0} {1} {2} ] [m/sec^2]".format(linear_acceleration[0], 
+                                                                                      linear_acceleration[1], 
+                                                                                      linear_acceleration[2]))
+                # Angular velocities
+                angular_velocity = self.sensors_data.get_imu_data().get_angular_velocity()  
+                self.logger.info(" \t Angular Velocities: [ {0} {1} {2} ] [deg/sec]".format(angular_velocity[0], 
+                                                                                            angular_velocity[1], 
+                                                                                            angular_velocity[2]))
+                if self.timestamp_handler.is_new(self.sensors_data.get_magnetometer_data()):
+                    # Magnetic field
+                    magnetic_field_calibrated = self.sensors_data.get_magnetometer_data().get_calibrated_magnetic_field()
+                    self.logger.info(" \t Magnetic Field: [ {0} {1} {2} ] [uT]".format(magnetic_field_calibrated[0], 
+                                                                                       magnetic_field_calibrated[1], 
+                                                                                       magnetic_field_calibrated[2]))
+                if self.timestamp_handler.is_new(self.sensors_data.get_barometer_data()):
+                    # Atmospheric pressure
+                    pressure = self.sensors_data.get_barometer_data().pressure()
+                    self.logger.info(" \t Pressure: {0} [hPa]".format(pressure))
 
-        linear_acceleration = self.sensors_data.get_imu_data().get_linear_acceleration()
-        self.logger.info(" \t Acceleration: [ {0} {1} {2} ] [m/sec^2]".format(linear_acceleration[0], linear_acceleration[1], linear_acceleration[2]))
-
-        angular_velocity = self.sensors_data.get_imu_data().get_angular_velocity()  
-        self.logger.info(" \t Angular Velocities: [ {0} {1} {2} ] [deg/sec]".format(angular_velocity[0], angular_velocity[1], angular_velocity[2]))
+        if self.timestamp_handler.is_new(self.sensors_data.get_imu_data()) \
+        and self.timestamp_handler.is_new(self.sensors_data.get_magnetometer_data()) \
+        and self.timestamp_handler.is_new(self.sensors_data.get_barometer_data()):
+            return self.sensors_data
+        
