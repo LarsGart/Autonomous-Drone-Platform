@@ -93,7 +93,7 @@ class ZedModel():
                     self.logger.info("Noise Density: " + str(sensor_config.noise_density) + " " + str(sensor_config.sensor_unit) + "Hz")
                     self.logger.info("Random Walk: " + str(sensor_config.random_walk) + " " + str(sensor_config.sensor_unit) + "Hz")
                 except:
-                    ValueError('NaN values for noise density and random walk')
+                    self.logger.warning("NaN values for noise density and/or random walk")
                 
                 return sensor_config
     
