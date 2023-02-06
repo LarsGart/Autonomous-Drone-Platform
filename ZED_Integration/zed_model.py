@@ -10,7 +10,10 @@ import serial
 import logging
 
 
-logging.basicConfig(filename='zed_model.log', filemode='w')
+logging.basicConfig(filename='zed_model.log', 
+                    filemode='w', 
+                    level = logging.DEBUG, 
+                    format='%(asctime)s:%(levelname)s:%(message)s')
 
 '''
 Basic class to handle the timestamp of the different sensors
@@ -62,6 +65,8 @@ class ZedModel():
         if err != sl.ERROR_CODE.SUCCESS:
             self.logger.warning(repr(err))
             self.zed.close()
+            exit(1)
+        return True
 
     def get_camera_configuration(self):
         self.logger.info(self.info)
@@ -69,6 +74,8 @@ class ZedModel():
         self.logger.info("Serial Number: " + str(self.info.serial_number))
         self.logger.info("Camera Firmware: " + str(self.info.camera_configuration.firmware_version))
         self.logger.info("Sensors Firmware: " + str(self.info.sensors_configuration.firmware_version))
+
+        return self.info
 
     def get_sensor_configuration(self):
         sensors = ['accelerometer', 'gyroscope', 'magnetometer', 'barometer']
@@ -87,6 +94,8 @@ class ZedModel():
                     self.logger.info("Random Walk: " + str(sensor_config.random_walk) + " " + str(sensor_config.sensor_unit) + "Hz")
                 except:
                     ValueError('NaN values for noise density and random walk')
+                
+                return sensor_config
     
     def get_sensor_data(self):
         self.timestamp_handler = TimestampHandler()
