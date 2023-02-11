@@ -1,5 +1,18 @@
 '''
-Condensing testMotorsandSensors.py
+Author: Lars Gartenberg
+
+This module contains two main classes, TimestampHandler and ZedModel.
+
+The TimestampHandler class is responsible for handling
+the timestamps of various sensors and determining if the data is new or old.
+It has three instance variables t_imu, t_baro and t_mag which store the timestamps
+for the IMU, barometer and magnetometer respectively.
+The is_new method is used to determine if a new timestamp is
+greater than the stored reference and updates it if necessary.
+
+The ZedModel class has methods to open and close the camera,
+get camera and sensor configuration information,
+and log information to a file
 '''
 import pyzed.sl as sl
 
@@ -9,11 +22,6 @@ import math
 import serial
 import logging
 
-
-logging.basicConfig(filename='zed_model.log', 
-                    filemode='w', 
-                    level = logging.DEBUG, 
-                    format='%(asctime)s:%(levelname)s:%(message)s')
 
 '''
 Class to handle timestamps of various sensors and determine if data is new or old.
@@ -61,11 +69,12 @@ class ZedModel():
         self.cam_model = self.info.camera_model
         self.sensors = ['accelerometer', 'gyroscope', 'magnetometer', 'barometer']
         self.ts_handler = TimestampHandler()
+        logging.basicConfig(filename='zed_model.log'
+                           ,filemode='w'
+                           ,level = logging.DEBUG
+                           ,format='%(asctime)s:%(levelname)s:%(message)s')
         self.logger = logging.getLogger()
 
-    '''
-    Attempts to open the Zed camera. Returns True on success
-    '''
     def openCamera(self):
         err = self.zed.open(self.init_params)
         if err != sl.ERROR_CODE.SUCCESS:
@@ -74,21 +83,18 @@ class ZedModel():
             exit(1)
         return True
     
-    '''
-    Attempts to close the Zed camera. Returns True on success
-    '''
+
     def closeCamera(self):
-        self.zed.close()
-        return True
+        if self.zed.is_opened():
+            try:
+                self.zed.close()
+                self.logger.info("Camera closed")
+            except:
+                self.logger.warning("Camera could not be closed")
+        else:
+            self.logger.warning("Camera not open")
     
-    '''
-    Logs the following camera configuration information:
-    - Camera information object
-    - Camera model
-    - Serial number
-    - Camera firmware version
-    - Sensors firmware version
-    '''
+
     def get_camera_configuration(self):
         self.logger.info(self.info)
         self.logger.info("Camera Model: " + str(self.cam_model))
@@ -126,19 +132,20 @@ class ZedModel():
             
     '''
     Retrieve sensor data from the ZED camera based on the specified sensor type.
-    
-    Parameters:
+
+    Args:
     sensor_type (str, optional): Specify the type of sensor data to retrieve. 
-                                 Options include 'accelerometer', 'gyroscope', 'magnetometer', 'barometer', and 'all'.
-                                 Default value is None.
-    
+                                Options include 'accelerometer', 'gyroscope', 'magnetometer', 'barometer', and 'all'.
+                                Default value is None.
+
     Returns:
-    linear_acceleration (list): A list of linear acceleration values in [m/sec^2] if the `sensor_type` is 'accelerometer'.
-    angular_velocity (list): A list of angular velocity values in [deg/sec] if the `sensor_type` is 'gyroscope'.
-    magnetic_field_calibrated (list): A list of calibrated magnetic field values in [uT] if the `sensor_type` is 'magnetometer'.
-    pressure (float): The pressure value in [hPa] if the `sensor_type` is 'barometer'.
-    all_sensors (dict): A dictionary of all sensor data if the `sensor_type` is 'all'.
-    
+    Depending on the `sensor_type`, the function returns:
+        - A list of linear acceleration values in [m/sec^2] if the `sensor_type` is 'accelerometer'.
+        - A list of angular velocity values in [deg/sec] if the `sensor_type` is 'gyroscope'.
+        - A list of calibrated magnetic field values in [uT] if the `sensor_type` is 'magnetometer'.
+        - The pressure value in [hPa] if the `sensor_type` is 'barometer'.
+        - A dictionary of all sensor data if the `sensor_type` is 'all'.
+
     Raises:
     Warning: If the specified `sensor_type` is not available or the data has not been updated.
     '''
@@ -146,47 +153,51 @@ class ZedModel():
         self.timestamp_handler = TimestampHandler()
         self.sensors_data = sl.SensorsData()
         # Checks if the sensors_data is available and if the timestamp is new
-        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS :
-            if self.timestamp_handler.is_new(self.sensors_data.get_imu_data()):
-                match sensor_type:
-                    
-                    case 'accelerometer':
-                        linear_acceleration = self.sensors_data.get_imu_data().get_linear_acceleration()
-                        self.logger.info(" \t Acceleration: [ {0} {1} {2} ] [m/sec^2]".format(linear_acceleration[0], 
-                                                                                            linear_acceleration[1], 
-                                                                                            linear_acceleration[2]))
-                        return linear_acceleration
-                    
-                    case 'gyroscope':
-                        angular_velocity = self.sensors_data.get_imu_data().get_angular_velocity()
-                        self.logger.info(" \t Angular Velocities: [ {0} {1} {2} ] [deg/sec]".format(angular_velocity[0], 
-                                                                                                    angular_velocity[1], 
-                                                                                                    angular_velocity[2]))
-                        return angular_velocity
-                    
-                    case 'magnetometer':
-                        if self.timestamp_handler.is_new(self.sensors_data.get_magnetometer_data()):
-                            magnetic_field_calibrated = self.sensors_data.get_magnetometer_data().get_calibrated_magnetic_field()
-                            self.logger.info(" \t Magnetic Field: [ {0} {1} {2} ] [uT]".format(magnetic_field_calibrated[0], 
-                                                                                               magnetic_field_calibrated[1], 
-                                                                                               magnetic_field_calibrated[2]))
-                            return magnetic_field_calibrated
-                        else:
-                            self.logger.warning("Magnetometer data has not been updated")
-                    
-                    case 'barometer':
-                        if self.timestamp_handler.is_new(self.sensors_data.get_barometer_data()):
-                            pressure = self.sensors_data.get_barometer_data().pressure()
-                            self.logger.info(" \t Pressure: {0} [hPa]".format(pressure))
-                            return pressure
-                        else:
-                            self.logger.warning("Barometer data has not been updated")
-                    
-                    case 'all':
-                        return {sensor: self.get_sensor_data(sensor) for sensor in self.sensors}
-                    
-                    case _:
-                        self.logger.warning("Sensor type not available")
+        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) != sl.ERROR_CODE.SUCCESS:
+            self.logger.warning("Sensor data not available because the ZED is not opened")
+            return None
+
+        if not self.timestamp_handler.is_new(self.sensors_data.get_imu_data()):
+            self.logger.warning("Data not updated")
+            return None
+
+        data = {}
+        if sensor_type == 'all':
+            for sensor in ['accelerometer', 'gyroscope', 'magnetometer', 'barometer']:
+                data[sensor] = self.get_sensor_data(sensor)
+        elif sensor_type == 'accelerometer':
+            linear_acceleration = self.sensors_data.get_imu_data().get_linear_acceleration()
+            self.logger.info(" \t Acceleration: [ {0} {1} {2} ] [m/sec^2]".format(linear_acceleration[0], 
+                                                                                linear_acceleration[1], 
+                                                                                linear_acceleration[2]))
+            data = linear_acceleration
+        elif sensor_type == 'gyroscope':
+            angular_velocity = self.sensors_data.get_imu_data().get_angular_velocity()
+            self.logger.info(" \t Angular Velocities: [ {0} {1} {2} ] [deg/sec]".format(angular_velocity[0], 
+                                                                                        angular_velocity[1], 
+                                                                                        angular_velocity[2]))
+            data = angular_velocity
+        elif sensor_type == 'magnetometer':
+            if not self.timestamp_handler.is_new(self.sensors_data.get_magnetometer_data()):
+                self.logger.warning("Magnetometer data has not been updated")
+                return None
+            magnetic_field_calibrated = self.sensors_data.get_magnetometer_data().get_calibrated_magnetic_field()
+            self.logger.info(" \t Magnetic Field: [ {0} {1} {2} ] [uT]".format(magnetic_field_calibrated[0], 
+                                                                            magnetic_field_calibrated[1], 
+                                                                            magnetic_field_calibrated[2]))
+            data = magnetic_field_calibrated
+        elif sensor_type == 'barometer':
+            if not self.timestamp_handler.is_new(self.sensors_data.get_barometer_data()):
+                self.logger.warning("Barometer data has not been updated")
+                return None
+            pressure = self.sensors_data.get_barometer_data().pressure()
+            self.logger.info(" \t Pressure: {0} [hPa]".format(pressure))
+            data = pressure
+        else:
+            self.logger.warning("Sensor type not available")
+            return None
+
+        return data
 
     '''
     Retrieves the orientation data from the IMU sensor using the Zed Camera API and returns the filtered orientation quaternion.
@@ -214,3 +225,4 @@ class ZedModel():
                 return quaternion
             else:
                 self.logger.warning("IMU data has not been updated")
+                return None
