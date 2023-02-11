@@ -32,24 +32,18 @@ class TimestampHandler:
         self.t_baro = sl.Timestamp()
         self.t_mag = sl.Timestamp()
     
+    
     '''
     Determines if a new timestamp is greater than the stored reference and updates it if necessary.
     '''
     def is_new(self, sensor):
-        if (isinstance(sensor, sl.IMUData)):
-            new_ = (sensor.timestamp.get_microseconds() > self.t_imu.get_microseconds())
+        sensor_timestamp_map = {sl.IMUData: self.t_imu,
+                                sl.MagnetometerData: self.t_mag,
+                                sl.BarometerData: self.t_baro}
+        if type(sensor) in sensor_timestamp_map:
+            new_ = (sensor.timestamp.get_microseconds() > sensor_timestamp_map[type(sensor)].get_microseconds())
             if new_:
-                self.t_imu = sensor.timestamp
-            return new_
-        elif (isinstance(sensor, sl.MagnetometerData)):
-            new_ = (sensor.timestamp.get_microseconds() > self.t_mag.get_microseconds())
-            if new_:
-                self.t_mag = sensor.timestamp
-            return new_
-        elif (isinstance(sensor, sl.BarometerData)):
-            new_ = (sensor.timestamp.get_microseconds() > self.t_baro.get_microseconds())
-            if new_:
-                self.t_baro = sensor.timestamp
+                sensor_timestamp_map[type(sensor)] = sensor.timestamp
             return new_
 
 
@@ -75,34 +69,32 @@ class ZedModel():
                            ,format='%(asctime)s:%(levelname)s:%(message)s')
         self.logger = logging.getLogger()
 
+
     def openCamera(self):
         err = self.zed.open(self.init_params)
         if err != sl.ERROR_CODE.SUCCESS:
             self.logger.warning(repr(err))
-            self.zed.close()
             exit(1)
         return True
-    
+
 
     def closeCamera(self):
         if self.zed.is_opened():
-            try:
-                self.zed.close()
-                self.logger.info("Camera closed")
-            except:
-                self.logger.warning("Camera could not be closed")
+            self.zed.close()
+            self.logger.info("Camera closed")
         else:
             self.logger.warning("Camera not open")
-    
+
 
     def get_camera_configuration(self):
-        self.logger.info(self.info)
-        self.logger.info("Camera Model: " + str(self.cam_model))
-        self.logger.info("Serial Number: " + str(self.info.serial_number))
-        self.logger.info("Camera Firmware: " + str(self.info.camera_configuration.firmware_version))
-        self.logger.info("Sensors Firmware: " + str(self.info.sensors_configuration.firmware_version))
+        camera_config = self.info
+        self.logger.info(camera_config)
+        self.logger.info(f"Camera Model: {self.cam_model}")
+        self.logger.info(f"Serial Number: {camera_config.serial_number}")
+        self.logger.info(f"Camera Firmware: {camera_config.camera_configuration.firmware_version}")
+        self.logger.info(f"Sensors Firmware: {camera_config.sensors_configuration.firmware_version}")
+        return camera_config
 
-        return self.info
 
     '''
     Retrieves configuration information for each sensor in the `sensors` list and logs the following information:
@@ -116,19 +108,20 @@ class ZedModel():
     '''
     def get_sensor_configuration(self):
         for sensor in self.sensors:
-            sensor_field = 'sensors_' + sensor + '_configuration'
-            sensor_config = self.info.__dict__[sensor_field]
+            sensor_field = f'sensors_{sensor}_configuration'
+            sensor_config = getattr(self.info, sensor_field)
             if sensor_config.is_available:
-                self.logger.info("Sensor type: " + str(sensor_config.sensor_type))
-                self.logger.info("Max rate: " + str(sensor_config.sampling_rate) + " " + str(sl.SENSORS_UNIT.HERTZ))
-                self.logger.info("Range: " + str(sensor_config.sensor_range) + " " + str(sensor_config.sensor_unit))
-                self.logger.info("Resolution: " + str(sensor_config.resolution) + " " + str(sensor_config.sensor_unit))
+                self.logger.info(f"Sensor type: {sensor_config.sensor_type}")
+                self.logger.info(f"Max rate: {sensor_config.sampling_rate} {sl.SENSORS_UNIT.HERTZ}")
+                self.logger.info(f"Range: {sensor_config.sensor_range} {sensor_config.sensor_unit}")
+                self.logger.info(f"Resolution: {sensor_config.resolution} {sensor_config.sensor_unit}")
                 try:
-                    self.logger.info("Noise Density: " + str(sensor_config.noise_density) + " " + str(sensor_config.sensor_unit) + "Hz")
-                    self.logger.info("Random Walk: " + str(sensor_config.random_walk) + " " + str(sensor_config.sensor_unit) + "Hz")
-                except:
+                    self.logger.info(f"Noise Density: {sensor_config.noise_density} {sensor_config.sensor_unit}Hz")
+                    self.logger.info(f"Random Walk: {sensor_config.random_walk} {sensor_config.sensor_unit}Hz")
+                except TypeError: # this will 
                     self.logger.warning("NaN values for noise density and/or random walk")
                 return sensor_config
+
             
     '''
     Retrieve sensor data from the ZED camera based on the specified sensor type.
@@ -167,24 +160,18 @@ class ZedModel():
                 data[sensor] = self.get_sensor_data(sensor)
         elif sensor_type == 'accelerometer':
             linear_acceleration = self.sensors_data.get_imu_data().get_linear_acceleration()
-            self.logger.info(" \t Acceleration: [ {0} {1} {2} ] [m/sec^2]".format(linear_acceleration[0], 
-                                                                                linear_acceleration[1], 
-                                                                                linear_acceleration[2]))
+            self.logger.info(" \t Acceleration: [ {0} {1} {2} ] [m/sec^2]".format(*linear_acceleration))
             data = linear_acceleration
         elif sensor_type == 'gyroscope':
             angular_velocity = self.sensors_data.get_imu_data().get_angular_velocity()
-            self.logger.info(" \t Angular Velocities: [ {0} {1} {2} ] [deg/sec]".format(angular_velocity[0], 
-                                                                                        angular_velocity[1], 
-                                                                                        angular_velocity[2]))
+            self.logger.info(" \t Angular Velocities: [ {0} {1} {2} ] [deg/sec]".format(*angular_velocity))
             data = angular_velocity
         elif sensor_type == 'magnetometer':
             if not self.timestamp_handler.is_new(self.sensors_data.get_magnetometer_data()):
                 self.logger.warning("Magnetometer data has not been updated")
                 return None
             magnetic_field_calibrated = self.sensors_data.get_magnetometer_data().get_calibrated_magnetic_field()
-            self.logger.info(" \t Magnetic Field: [ {0} {1} {2} ] [uT]".format(magnetic_field_calibrated[0], 
-                                                                            magnetic_field_calibrated[1], 
-                                                                            magnetic_field_calibrated[2]))
+            self.logger.info(" \t Magnetic Field: [ {0} {1} {2} ] [uT]".format(*magnetic_field_calibrated))
             data = magnetic_field_calibrated
         elif sensor_type == 'barometer':
             if not self.timestamp_handler.is_new(self.sensors_data.get_barometer_data()):
@@ -213,16 +200,13 @@ class ZedModel():
         self.timestamp_handler = TimestampHandler()
         self.sensors_data = sl.SensorsData()
 
-        # Checks if the sensors_data is available and if the timestamp is new
-        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS :
-            if self.timestamp_handler.is_new(self.sensors_data.get_imu_data()):
-                # Filtered orientation quaternion
-                quaternion = self.sensors_data.get_imu_data().get_pose().get_orientation().get()
-                self.logger.info(" \t Orientation: [ Ox: {0}, Oy: {1}, Oz {2}, Ow: {3} ]".format(quaternion[0], 
-                                                                                                 quaternion[1], 
-                                                                                                 quaternion[2], 
-                                                                                                 quaternion[3]))
-                return quaternion
-            else:
-                self.logger.warning("IMU data has not been updated")
-                return None
+        # Check if sensors_data is available and if timestamp is new
+        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS \
+        and self.timestamp_handler.is_new(self.sensors_data.get_imu_data()):
+            # Get filtered orientation quaternion
+            quaternion = self.sensors_data.get_imu_data().get_pose().get_orientation().get()
+            self.logger.info(" \t Orientation: [ Ox: {0}, Oy: {1}, Oz {2}, Ow: {3} ]".format(*quaternion)) # the * is the 
+            return quaternion
+        else:
+            self.logger.warning("IMU data has not been updated")
+            return None
