@@ -22,6 +22,7 @@ import math
 import serial
 import logging
 import math
+from Logging.file_timestamper import get_timestamped_filename
 
 
 '''
@@ -33,7 +34,7 @@ class ZedModel():
     Initializes the Zed camera object and sets the depth mode to NONE.
     '''
     def __init__(self):
-        logging.basicConfig(filename='zed_model.log'
+        logging.basicConfig(filename=get_timestamped_filename(self.__class__.__name__)
                            ,filemode='w'
                            ,level = logging.DEBUG
                            ,format='%(asctime)s:%(levelname)s:%(message)s')
@@ -166,7 +167,12 @@ class ZedModel():
             self.logger.warning("IMU data has not been updated")
             return None
         
-    
+    '''
+    Retrieves the orientation data from the IMU sensor using the Zed Camera API and returns the filtered orientation quaternion.
+
+    Returns:
+    List[float]: A list of 3 float values representing the orientation Euler angles in [rad].
+    '''
     def get_euler(self):
         q = self.get_quaternion()
         x, y, z, w = q[0], q[1], q[2], q[3]

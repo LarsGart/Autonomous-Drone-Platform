@@ -1,7 +1,7 @@
 import socket
 
 # Define UDP address and port
-udpAddrPort = ('10.0.0.20', 44444)
+udpAddrPort = ('192.168.0.173', 44444)
 
 # Instantiate socket
 sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)

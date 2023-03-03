@@ -25,26 +25,29 @@ MOTOR MAPPINGS
 import re
 import serial
 import socket
+import sys
 import numpy as np
 
-from time import sleep, time
+from time import sleep, time # I'm sleepy
+
+sys.path.append("/home/drone/Autonomous-Drone-Platform/ZED_Integration")
 
 # Custom modules
-import imufusion
 from ibus import IBus
-from orientationSensor import OrientationSensor
+from pid import PID
+from zed_model import ZedModel
 
 ################ DRONE VARS #################
 
 # Sensor sample rate
-sampleRate = 100
+sampleRate = 800
 
 # Throttle scaling
 throttleScale = 0.5
 
 # Mag calibration info generated from spherical fitting
 # TODO: Implement onboard magnetometer calibration
-r, mx0, my0, mz0 = 50.105256281553686, -68.08280561, -86.10432325, 65.38094172
+# r, mx0, my0, mz0 = 50.105256281553686, -68.08280561, -86.10432325, 65.38094172
 
 #################### PID ####################
 
@@ -80,12 +83,8 @@ uart2 = serial.Serial(
 # Instantiate the ibus
 ib = IBus(uart1)
 
-# Instantiate the orientation sensor
-sensor = OrientationSensor('/dev/i2c-0')
-
-# Instantiate fusion interface
-offset = imufusion.Offset(sampleRate)
-ahrs = imufusion.Ahrs()
+# Instantiate the ZED Model
+zed = ZedModel()
 
 # Define rx info
 rxData = [1500, 1500, 1000, 1500]
@@ -234,15 +233,8 @@ def getControlInputs():
     ]
 
 def main():
-    # Initialize filter
-    ahrs.settings = imufusion.Settings(
-        0.5,  # gain
-        10,  # acceleration rejection
-        20,  # magnetic rejection
-        5 * sampleRate  # rejection timeout = 5 seconds
-    )
-
     tPrev = time()
+    print(zed)
     while 1:
         # Get time between sensor readings
         tCurr = time()
@@ -256,18 +248,22 @@ def main():
         readSocketPID()
 
         # Get drone orientation
-        droneAngs = getOrientation(tDelta)
+        # droneAngs = getOrientation(tDelta)
+
+        angs = zed.get_euler()
 
         # Create pid set points
         pidSetPoints[0] = 0.12 * filterRxIn(rxData[3]) - 180
         pidSetPoints[1] = -0.03 * filterRxIn(rxData[1]) + 45
         pidSetPoints[2] = -0.03 * filterRxIn(rxData[0]) + 45
 
-        # Calculate pid errors
-        calcErr(droneAngs)
+        # # Calculate pid errors
+        # calcErr(droneAngs)
 
-        # Calculate PID outputs
-        outSpeeds = calcPID(rxData[2])
+        # # Calculate PID outputs
+        # outSpeeds = calcPID(rxData[2])
+
+        outSpeeds = [int(throttleScale * rxData[2]) + 500] * 4
 
         # Output motor speeds
         outputSpeeds(outSpeeds)
@@ -282,11 +278,15 @@ if __name__ == '__main__':
         # Kill motors
         outputSpeeds([1000] * 4)
 
-        # Close sensor
-        del sensor
-
         # Close socket
         sock.close()
 
+        # Delete instantiations
+        del ib
+
+        # Close zed camera
+        zed.closeCamera()
+        del zed
+
         # Print PID values
-        print(f"P = {kP}\nI = {kI}\nD = {kD}")
+        print(f"\nP = {kP}\nI = {kI}\nD = {kD}")
