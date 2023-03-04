@@ -62,7 +62,7 @@ class PID():
         )
     
     '''
-    Reset errors
+    Reset PID errors
     '''
     def resetError(self):
         self.err = 0

@@ -14,4 +14,4 @@ echo "cloning Autonomous-Drone-Platform repository"
 pip3 install pyserial
 echo "installing pyserial"
 echo "restarting system"
-reboot
+reboot now

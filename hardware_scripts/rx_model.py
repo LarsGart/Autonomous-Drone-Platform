@@ -1,5 +1,7 @@
 '''
 Author: Jerin Abraham
+
+This class handles reading from the RC receiver
 '''
 import serial
 import numpy as np
@@ -33,7 +35,7 @@ class RX():
     Closes and deletes the UART port
     '''
     def __del__(self):
-        # Close the UART port
+        # Close the UART
         del self.uart
 
     '''
@@ -72,6 +74,7 @@ class RX():
         if (self.missedReadings > 100):
             self.output = [1500, 1500, 1000, 1500]
 
+        # Create a deadband for channels 0, 1, and 3
         self.output[0] = self.__createDeadband(self.output[0])
         self.output[1] = self.__createDeadband(self.output[1])
         self.output[3] = self.__createDeadband(self.output[3])

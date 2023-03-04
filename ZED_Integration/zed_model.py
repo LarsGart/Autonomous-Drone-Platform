@@ -28,7 +28,7 @@ from Logging.file_timestamper import get_timestamped_filename
 '''
 Class to instantiate a Zed camera object.
 '''
-class ZedModel():
+class ZedSensorModel():
     '''
     Constructor for ZedModel class.
     Initializes the Zed camera object and sets the depth mode to NONE.

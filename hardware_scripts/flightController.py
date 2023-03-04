@@ -33,21 +33,15 @@ from time import sleep, time # I'm sleepy
 sys.path.append("/home/drone/Autonomous-Drone-Platform/ZED_Integration")
 
 # Custom modules
-from ibus import IBus
+from motor_model import Motors
+from rx_model import RX
 from pid_model import PID
 from zed_model import ZedModel
 
 ################ DRONE VARS #################
 
-# Sensor sample rate
-sampleRate = 800
-
 # Throttle scaling
 throttleScale = 0.5
-
-# Mag calibration info generated from spherical fitting
-# TODO: Implement onboard magnetometer calibration
-# r, mx0, my0, mz0 = 50.105256281553686, -68.08280561, -86.10432325, 65.38094172
 
 #################### PID ####################
 
@@ -61,194 +55,57 @@ pidLimit = 200
 
 #############################################
 
-# Define the UARTs
-uart1 = serial.Serial(
-    port="/dev/ttyTHS1",
-    baudrate=115200
-)
-
-uart2 = serial.Serial(
-    port="/dev/ttyS0",
-    baudrate=115200
-)
-
-# Instantiate the ibus
-ib = IBus(uart1)
-
-# Instantiate the 
-
-# Instantiate the ZED Model
+# Instantiate stuff
+motors = Motors()
+rx = RX()
 zed = ZedModel()
 
-# Define rx info
-rxData = [1500, 1500, 1000, 1500]
-rxMissedReadings = 0
+# Create PID
+pidPitch = PID(kP[0], kI[0], kD[0], pidLimit)
+pidRoll = PID(kP[1], kI[1], kD[1], pidLimit)
+pidYaw = PID(kP[2], kI[2], kD[2], pidLimit)
 
 # Instantiate socket
 sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 sock.setblocking(False)
 sock.bind(('0.0.0.0', 44444))
 
-# Split speeds into MSB and LSB for each speed and send byte stream to speed controller via UART2
-def outputSpeeds(speeds):
-    uart2.write(bytearray([
-        60, # Sends a '<'
-        (speeds[0] >> 8) & 255, speeds[0] & 255,
-        (speeds[1] >> 8) & 255, speeds[1] & 255,
-        (speeds[2] >> 8) & 255, speeds[2] & 255,
-        (speeds[3] >> 8) & 255, speeds[3] & 255,
-        62 # Sends a '>'
-    ]))
-
-# Create a 16us deadzone around the center of the joystick to prevent pid errors
-def filterRxIn(rxInput):
-    return ((rxInput > 1492 and rxInput < 1508) and 1500 or rxInput)
-
-# Calculate PID errors
-def calcErr(droneAngs):
-    for i in range(3):
-        # Calculate P error
-        err[i] = droneAngs[i] - pidSetPoints[i]
-
-        # Calculate I error if I coefficient is > 0
-        if (kI[i] > 0):
-            rawErrSum = errSum[i] + err[i]
-
-            errSum[i] = np.clip(rawErrSum, -pidLimit / kI[i], pidLimit / kI[i])
-        
-        # Calculate D error
-        deltaErr[i] = err[i] - prevErr[i]
-
-        # Update previous error
-        prevErr[i] = err[i]
-
-# Reset PID errors
-def resetErr():
-    for i in range(3):
-        err[i] = 0
-        errSum[i] = 0
-        deltaErr[i] = 0
-        prevErr[i] = 0
-
-# Calculate motor speeds using PID
-def calcPID(throttle):
-    pid = [0] * 3
-    mOut = [1000] * 4
-
-    # Scale throttle to prevent drone from going into orbit
-    throttleMap = throttleScale * throttle + 1000 * (1 - throttleScale)
-
-    # Calculate PID if there's throttle
-    if (throttle > 1012):
-        for i in range(3):
-            pid[i] = (kP[i] * err[i]) + (kI[i] * errSum[i]) + (kD[i] * deltaErr[i])
-        
-    # Constrain PID values
-    pid = np.clip(pid, -pidLimit, pidLimit)
-
-    # Calculate motor speeds
-    mOut = [
-        int(throttleMap + pid[0] - pid[1] - pid[2]),
-        int(throttleMap - pid[0] + pid[1] - pid[2]),
-        int(throttleMap + pid[0] + pid[1] + pid[2]),
-        int(throttleMap - pid[0] - pid[1] + pid[2])
-    ]
-
-    return mOut
-
 # Update PID values with values received from the socket and reset the errors
-def readSocketPID():
-    try:
-        data, _ = sock.recvfrom(64)
-        msg = data.decode().strip()
-        if (msg == 'r'):
-            resetErr()
-        else:
-            if re.findall('^[pid][123]=[0-9]+[.][0-9]+$', msg):
-                arr = (msg[0] == 'p' and kP or msg[0] == 'i' and kI or kD)
-                arr[int(msg[1]) - 1] = float(msg[3:])
-                resetErr()
+# def readSocketPID():
+#     try:
+#         data, _ = sock.recvfrom(64)
+#         msg = data.decode().strip()
+#         if (msg == 'r'):
+#             resetErr()
+#         else:
+#             if re.findall('^[pid][123]=[0-9]+[.][0-9]+$', msg):
+#                 arr = (msg[0] == 'p' and kP or msg[0] == 'i' and kI or kD)
+#                 arr[int(msg[1]) - 1] = float(msg[3:])
+#                 resetErr()
 
-    except BlockingIOError:
-        pass
-
-# Calculate true drone orientation
-# def getOrientation(tDelta):
-#     # Read sensor
-#     acc, mag, gyr = sensor.readSensor()
-
-#     # Apply calibration to magnetometer and gyroscope
-#     mag = (mag - np.array([mx0, my0, mz0]).transpose()) / r
-#     gyr = offset.update(gyr)
-
-#     # Update fusion filter
-#     ahrs.update(gyr, acc, mag, tDelta)
-
-#     # Get yaw, pitch, and roll info
-#     eul = ahrs.quaternion.to_euler()
-
-#     # Calculate true yaw, pitch, roll
-#     droneAngs = [
-#         gyr[2],
-#         (eul[0] < 0 and 180 + eul[0] or eul[0] - 180),
-#         -eul[1]
-#     ]
-
-#     return droneAngs
-
-# Read receiver and handle missed inputs
-def getControlInputs():
-    global rxMissedReadings
-    global rxData
-
-    # Flush serial buffer
-    uart1.reset_input_buffer()
-
-    # Read RX values
-    rxIn = ib.readIBUS()
-
-    # Only update rxData if rxIn isn't None and increment rxMissedReadings if it is
-    if (rxIn):
-        rxData = np.clip(rxIn, 1000, 2000)
-        rxMissedReadings = 0
-    else:
-        rxMissedReadings += 1
-
-    # If there were over 100 missed readings, set the control input to hover
-    if (rxMissedReadings > 100):
-        rxData = [1500, 1500, 1000, 1500]
-
-    # Convert inputs to [-1, 1] range ([0, 1] for throttle) range for usability
-    rxDataConv = [
-        (rxData[0] - 1500) / 500,
-        (rxData[1] - 1500) / 500,
-        (rxData[2] - 1000) / 1000,
-        (rxData[3] - 1500) / 500 
-    ]
+#     except BlockingIOError:
+#         pass
 
 def main():
-    tPrev = time()
     while 1:
-        # Get time between sensor readings
-        tCurr = time()
-        tDelta = tCurr - tPrev
-        tPrev = tCurr
-
         # Get receiver input
-        getControlInputs()
+        rxData = RX.readRX()
 
         # Get PID values from socket if there's an update
-        readSocketPID()
+        # readSocketPID()
 
-        # Get drone orientation
-        # droneAngs = getOrientation(tDelta)
-
+        # Get drone orientation (gay)
         angs = zed.get_euler()
 
         # Create pid set points
-        pidSetPoints[0] = 0.12 * filterRxIn(rxData[3]) - 180
-        pidSetPoints[1] = -0.03 * filterRxIn(rxData[1]) + 45
-        pidSetPoints[2] = -0.03 * filterRxIn(rxData[0]) + 45
+        pidSetPoints = [
+            0.12 * rxData[3] - 180,
+            -0.03 * rxData[1] + 45,
+            -0.03 * rxData[0] + 45
+        ]
+
+        # Calculate PID
+
 
         # # Calculate pid errors
         # calcErr(droneAngs)
@@ -259,7 +116,7 @@ def main():
         outSpeeds = [int(throttleScale * rxData[2]) + 500] * 4
 
         # Output motor speeds
-        outputSpeeds(outSpeeds)
+        motors.outputSpeeds(outSpeeds)
 
         sleep(1 / sampleRate)
 
@@ -271,14 +128,10 @@ if __name__ == '__main__':
         print("Received termination command")
 
         # Kill motors
-        outputSpeeds([1000] * 4)
+        motors.outputSpeeds([1000] * 4)
 
         # Close socket
         sock.close()
-
-        # Delete instantiations
-        del ib
-        del pid
 
         # Close zed camera
         zed.closeCamera()
