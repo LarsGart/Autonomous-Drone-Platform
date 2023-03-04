@@ -48,15 +48,20 @@ class RX():
     def createDeadband(self, input):
         return ((input > 1492 and input < 1508) and 1500 or input)
     
-    # Read receiver and handle missed inputs
-    def getCtrlInput(self):
+    '''
+    Read receiver and handle missed inputs
+
+    RETURNS:
+        List[int]: A list of the received values from each channel of the receiver
+    '''
+    def readRX(self):
         # Flush serial buffer
         self.uart.reset_input_buffer()
 
         # Read RX values
         self.input = self.ibus.readIBUS()
 
-        # Only update rxData if rxIn isn't None and increment rxMissedReadings if it is
+        # Only update output if input isn't None and increment missedReadings if it is
         if (self.input):
             self.output = np.clip(self.input, 1000, 2000)
             self.missedReadings = 0
@@ -65,6 +70,6 @@ class RX():
 
         # If there were over 100 missed readings, set the control input to hover
         if (self.missedReadings > 100):
-            self.output = [1500] * 4
+            self.output = [1500, 1500, 1000, 1500]
 
         return self.output
