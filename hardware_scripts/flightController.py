@@ -34,7 +34,7 @@ sys.path.append("/home/drone/Autonomous-Drone-Platform/ZED_Integration")
 
 # Custom modules
 from ibus import IBus
-from pid import PID
+from pid_model import PID
 from zed_model import ZedModel
 
 ################ DRONE VARS #################
@@ -50,14 +50,6 @@ throttleScale = 0.5
 # r, mx0, my0, mz0 = 50.105256281553686, -68.08280561, -86.10432325, 65.38094172
 
 #################### PID ####################
-
-pidSetPoints = [0, 0, 0]
-
-# PID errors
-err = [0, 0, 0]
-deltaErr = [0, 0, 0]
-errSum = [0, 0, 0]
-prevErr = [0, 0, 0]
 
 # PID coefficients [Yaw, Pitch, Roll]
 kP = [1, 1.5, 1.5]
@@ -82,6 +74,8 @@ uart2 = serial.Serial(
 
 # Instantiate the ibus
 ib = IBus(uart1)
+
+# Instantiate the 
 
 # Instantiate the ZED Model
 zed = ZedModel()
@@ -179,28 +173,28 @@ def readSocketPID():
         pass
 
 # Calculate true drone orientation
-def getOrientation(tDelta):
-    # Read sensor
-    acc, mag, gyr = sensor.readSensor()
+# def getOrientation(tDelta):
+#     # Read sensor
+#     acc, mag, gyr = sensor.readSensor()
 
-    # Apply calibration to magnetometer and gyroscope
-    mag = (mag - np.array([mx0, my0, mz0]).transpose()) / r
-    gyr = offset.update(gyr)
+#     # Apply calibration to magnetometer and gyroscope
+#     mag = (mag - np.array([mx0, my0, mz0]).transpose()) / r
+#     gyr = offset.update(gyr)
 
-    # Update fusion filter
-    ahrs.update(gyr, acc, mag, tDelta)
+#     # Update fusion filter
+#     ahrs.update(gyr, acc, mag, tDelta)
 
-    # Get yaw, pitch, and roll info
-    eul = ahrs.quaternion.to_euler()
+#     # Get yaw, pitch, and roll info
+#     eul = ahrs.quaternion.to_euler()
 
-    # Calculate true yaw, pitch, roll
-    droneAngs = [
-        gyr[2],
-        (eul[0] < 0 and 180 + eul[0] or eul[0] - 180),
-        -eul[1]
-    ]
+#     # Calculate true yaw, pitch, roll
+#     droneAngs = [
+#         gyr[2],
+#         (eul[0] < 0 and 180 + eul[0] or eul[0] - 180),
+#         -eul[1]
+#     ]
 
-    return droneAngs
+#     return droneAngs
 
 # Read receiver and handle missed inputs
 def getControlInputs():
@@ -234,7 +228,6 @@ def getControlInputs():
 
 def main():
     tPrev = time()
-    print(zed)
     while 1:
         # Get time between sensor readings
         tCurr = time()
@@ -275,6 +268,8 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
+        print("Received termination command")
+
         # Kill motors
         outputSpeeds([1000] * 4)
 
@@ -283,6 +278,7 @@ if __name__ == '__main__':
 
         # Delete instantiations
         del ib
+        del pid
 
         # Close zed camera
         zed.closeCamera()

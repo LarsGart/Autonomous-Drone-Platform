@@ -1,3 +1,10 @@
+'''
+Author: Jerin Abraham
+
+This class acts as a generic PID loop
+
+It can be used for any PID purpose
+'''
 import numpy as np
 
 '''
@@ -71,7 +78,7 @@ class PID():
         worldInput (float): Measured world value
 
     RETURNS:
-        (float) pid output
+        (float): pid output
     '''
     def calc(self, ctrlInput, worldInput):
         self.ctrlInput = ctrlInput
