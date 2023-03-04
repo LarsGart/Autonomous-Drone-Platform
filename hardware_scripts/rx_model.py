@@ -45,7 +45,7 @@ class RX():
     RETURNS:
         (int): integer value with a deadband
     '''
-    def createDeadband(self, input):
+    def __createDeadband(self, input):
         return ((input > 1492 and input < 1508) and 1500 or input)
     
     '''
@@ -71,5 +71,9 @@ class RX():
         # If there were over 100 missed readings, set the control input to hover
         if (self.missedReadings > 100):
             self.output = [1500, 1500, 1000, 1500]
+
+        self.output[0] = self.__createDeadband(self.output[0])
+        self.output[1] = self.__createDeadband(self.output[1])
+        self.output[3] = self.__createDeadband(self.output[3])
 
         return self.output
