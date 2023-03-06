@@ -14,7 +14,7 @@ import math
 import serial
 import logging
 import math
-from Logging.file_timestamper import get_timestamped_filename
+from datetime import datetime
 
 
 class ZedSensorModel:
@@ -22,10 +22,9 @@ class ZedSensorModel:
     Initializes the Zed camera object and sets the depth mode to NONE.
     '''
     def __init__(self):
-        logging.basicConfig(filename=get_timestamped_filename(self.__class__.__name__)
-                           ,filemode='w'
-                           ,level = logging.DEBUG
-                           ,format='%(asctime)s:%(levelname)s:%(message)s')
+        logging.basicConfig(filename=f"{self.__class__.__name__}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+                            ,level=logging.DEBUG
+                            ,format='%(asctime)s:%(levelname)s:%(message)s')
         self.logger = logging.getLogger()
 
         self.zed = sl.Camera()
@@ -35,7 +34,7 @@ class ZedSensorModel:
         self.info = self.zed.get_camera_information()
         self.cam_model = self.info.camera_model
         self.sensors = ['accelerometer', 'gyroscope']
-        self.logger.info("ZedModel initialized")
+        self.logger.info("ZedSensorModel initialized")
 
 
     def openCamera(self):
