@@ -6,35 +6,24 @@ This class handles outputting motor speeds
 
 import serial
 
-class Motors():
+
+class Motors:
     '''
-    Constructor for the Motors class
     Instantiates the UART
     '''
     def __init__(self):
-        # Define the UART
-        self.uart = serial.Serial(
-            port="/dev/ttyS0",
-            baudrate=115200
-        )
+        self.uart = serial.Serial(port="/dev/ttyS0", baudrate=115200)
 
     '''
-    Destructor for the Motors class
     Closes and deletes the UART
     '''
     def __del__(self):
-        # Close the UART
-        del self.uart
+        self.uart.close()
 
     '''
     Split speeds into MSB and LSB for each speed and send byte stream to speed controller via UART
     '''
     def outputSpeeds(self, speeds):
-        self.uart.write(bytearray([
-            60, # Sends a '<'
-            (speeds[0] >> 8) & 255, speeds[0] & 255,
-            (speeds[1] >> 8) & 255, speeds[1] & 255,
-            (speeds[2] >> 8) & 255, speeds[2] & 255,
-            (speeds[3] >> 8) & 255, speeds[3] & 255,
-            62 # Sends a '>'
-        ]))
+        values = [60] + [speed >> i & 255 for speed in speeds for i in (8, 0)] + [62] # Sends a '<' and '>'
+        self.uart.write(bytearray(values))
+        
