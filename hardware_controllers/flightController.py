@@ -30,7 +30,7 @@ import numpy as np
 
 from time import sleep, time # I'm sleepy
 
-sys.path.append("/home/drone/Autonomous-Drone-Platform/ZED_Integration")
+sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
 
 # Custom modules
 from motor_model import Motors
