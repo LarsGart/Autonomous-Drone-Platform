@@ -2,7 +2,7 @@
 Author: Lars Gartenberg
 
 The ZedSensorModel class has methods to:
-- open and close the camera,
+- open and close the ZED mini camera
 - get camera and sensor configuration information
 - retrieve accelerometer, gyroscope data
 - quaternion, and euler angle values
@@ -62,18 +62,8 @@ class ZedSensorModel:
         self.logger.info(f"Camera Firmware: {camera_config.camera_configuration.firmware_version}")
         self.logger.info(f"Sensors Firmware: {camera_config.sensors_configuration.firmware_version}")
         return camera_config
+    
 
-
-    '''
-    Retrieves configuration information for each sensor in the `sensors` list and logs the following information:
-    - Sensor type
-    - Maximum rate
-    - Range
-    - Resolution
-    - Noise density (if available)
-    - Random walk (if available)
-    Returns the sensor configuration information for the first available sensor in the list.
-    '''
     def get_sensor_configuration(self):
         for sensor in self.sensors:
             sensor_config = getattr(self.info.sensors_configuration, f'{sensor}_parameters')
@@ -90,76 +80,40 @@ class ZedSensorModel:
         return sensor_config
 
             
-    '''
-    Retrieve sensor data from the ZED camera based on the specified sensor type.
-
-    Args:
-    sensor_type (str, optional): Specify the type of sensor data to retrieve. 
-                                Options include 'accelerometer', 'gyroscope', 'magnetometer', 'barometer', and 'all'.
-                                Default value is None.
-
-    Returns:
-    Depending on the `sensor_type`, the function returns:
-        - A list of linear acceleration values in [m/sec^2] if the `sensor_type` is 'accelerometer'.
-        - A list of angular velocity values in [deg/sec] if the `sensor_type` is 'gyroscope'.
-        - A dictionary of all sensor data if the `sensor_type` is 'all'.
-
-    Raises:
-    Warning: If the specified `sensor_type` is not available or the data has not been updated.
-    '''
     def get_sensor_data(self, sensor_type=None):
-        self.sensors_data = sl.SensorsData()
-        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) != sl.ERROR_CODE.SUCCESS:
+        if not self.zed.is_opened():
             self.logger.warning("Sensor data not available because the ZED is not opened")
             return None
 
-        data = {}
+        self.sensors_data = sl.SensorsData()
+        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) != sl.ERROR_CODE.SUCCESS:
+            return None
+
         if sensor_type == 'all':
-            for sensor in self.sensors:
-                data[sensor] = self.get_sensor_data(sensor)
+            return {sensor: self.get_sensor_data(sensor) for sensor in self.sensors}
         elif sensor_type == 'accelerometer':
             linear_acceleration = self.sensors_data.get_imu_data().get_linear_acceleration()
-            self.logger.info(" \t Acceleration: [ {0} {1} {2} ] [m/sec^2]".format(*linear_acceleration))
-            data = linear_acceleration
+            self.logger.info(f"\tAcceleration: {linear_acceleration} [m/sec^2]")
+            return linear_acceleration
         elif sensor_type == 'gyroscope':
             angular_velocity = self.sensors_data.get_imu_data().get_angular_velocity()
-            self.logger.info(" \t Angular Velocities: [ {0} {1} {2} ] [deg/sec]".format(*angular_velocity))
-            data = angular_velocity
+            self.logger.info(f"\tAngular Velocities: {angular_velocity} [deg/sec]")
+            return angular_velocity
         else:
             self.logger.warning("Sensor type not available")
             return None
+        
 
-        return data
-
-
-    '''
-    Retrieves the orientation data from the IMU sensor using the Zed Camera API and returns the filtered orientation quaternion.
-    The orientation data is represented as a 4-element quaternion in the form [Ox, Oy, Oz, Ow].
-
-    Returns:
-    List[float]: A list of 4 float values representing the orientation quaternion.
-
-    Raises:
-    Warning: If the IMU data has not been updated.
-    '''
     def get_quaternion(self):
         self.sensors_data = sl.SensorsData()
-
         if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS:
-            # Get filtered orientation quaternion
             quaternion = self.sensors_data.get_imu_data().get_pose().get_orientation().get()
-            self.logger.info(" \t Orientation: [ Ox: {0}, Oy: {1}, Oz {2}, Ow: {3} ]".format(*quaternion)) # the * is the 
+            self.logger.info(" \t Orientation: [ Ox: {0}, Oy: {1}, Oz {2}, Ow: {3} ]".format(*quaternion))
             return quaternion
         else:
             self.logger.warning("IMU data has not been updated")
             return None
-        
-    '''
-    Retrieves the orientation data from the IMU sensor using the Zed Camera API and returns the filtered orientation quaternion.
 
-    Returns:
-    List[float]: A list of 3 float values representing the orientation Euler angles in [rad].
-    '''
     def get_euler(self):
         q = self.get_quaternion()
         x, y, z, w = q[0], q[1], q[2], q[3]
@@ -177,4 +131,5 @@ class ZedSensorModel:
         t4 = +1.0 - 2.0 * (y * y + z * z)
         yaw_z = math.atan2(t3, t4)
      
-        return [roll_x, pitch_y, yaw_z] # in radians
+        return [roll_x, pitch_y, yaw_z]
+    
