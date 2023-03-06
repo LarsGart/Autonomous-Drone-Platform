@@ -36,7 +36,7 @@ sys.path.append("/home/drone/Autonomous-Drone-Platform/ZED_Integration")
 from motor_model import Motors
 from rx_model import RX
 from pid_model import PID
-from zed_model import ZedModel
+from zed_sensor_model import ZedSensorModel
 
 ################ DRONE VARS #################
 
@@ -58,7 +58,7 @@ pidLimit = 200
 # Instantiate stuff
 motors = Motors()
 rx = RX()
-zed = ZedModel()
+zed = ZedSensorModel()
 
 # Create PID
 pidPitch = PID(kP[0], kI[0], kD[0], pidLimit)

@@ -1,21 +1,13 @@
 '''
 Author: Lars Gartenberg
 
-This module contains two main classes, TimestampHandler and ZedModel.
-
-The TimestampHandler class is responsible for handling
-the timestamps of various sensors and determining if the data is new or old.
-It has three instance variables t_imu, t_baro and t_mag which store the timestamps
-for the IMU, barometer and magnetometer respectively.
-The is_new method is used to determine if a new timestamp is
-greater than the stored reference and updates it if necessary.
-
-The ZedModel class has methods to open and close the camera,
-get camera and sensor configuration information,
-and log information to a file
+The ZedSensorModel class has methods to:
+- open and close the camera,
+- get camera and sensor configuration information
+- retrieve accelerometer, gyroscope data
+- quaternion, and euler angle values
 '''
 import pyzed.sl as sl
-
 import cv2
 import numpy as np
 import math
@@ -25,12 +17,8 @@ import math
 from Logging.file_timestamper import get_timestamped_filename
 
 
-'''
-Class to instantiate a Zed camera object.
-'''
-class ZedSensorModel():
+class ZedSensorModel:
     '''
-    Constructor for ZedModel class.
     Initializes the Zed camera object and sets the depth mode to NONE.
     '''
     def __init__(self):
