@@ -8,13 +8,13 @@ I removed the parts that weren't needed for this project and did some refactorin
 '''
 
 class IBus:
-    PROTOCOL_SERVO = 0x40
-    PROTOCOL_CHANNELS = 14
-    PROTOCOL_OVERHEAD = 3
-    PROTOCOL_LENGTH = 0x20
 
     def __init__(self, uart):
         self.uart = uart
+        self.PROTOCOL_SERVO = 0x40
+        self.PROTOCOL_CHANNELS = 14
+        self.PROTOCOL_OVERHEAD = 3
+        self.PROTOCOL_LENGTH = 0x20
 
     def readUART(self):
         data = None
@@ -32,7 +32,7 @@ class IBus:
         data = self.readUART()
 
         expectedLen = data[0] - 1
-        if PROTOCOL_OVERHEAD <= expectedLen < PROTOCOL_LENGTH:
+        if self.PROTOCOL_OVERHEAD <= expectedLen < self.PROTOCOL_LENGTH:
             dataArr = bytearray(expectedLen)
             totalRead = self.uart.readinto(dataArr)
             if totalRead == expectedLen:

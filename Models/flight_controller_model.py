@@ -21,6 +21,8 @@ import sys
 import socket
 import numpy as np
 from time import sleep # I'm sleepy
+import logging
+from datetime import datetime
 
 sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
 
@@ -33,6 +35,12 @@ from zed_sensor_model import ZedSensorModel
 class FlightController:
 
     def __init__(self):
+        logging.basicConfig(filename=f"{self.__class__.__name__}\
+            _{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+                            ,level=logging.DEBUG
+                            ,format='%(asctime)s:%(levelname)s:%(message)s')
+        self.logger = logging.getLogger()
+    
         self.throttle_scale = 0.5
         self.pid_limit = 200
         self.kP = [1, 1.5, 1.5]
@@ -50,20 +58,17 @@ class FlightController:
         self.sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
         self.sock.setblocking(False)
         self.sock.bind(('0.0.0.0', 44444))
+        self.logger.info("FlightController initialized")
 
     def run(self):
         while True:
             rx_data = self.rx.readRX()
             angs = self.zed.get_euler()
-            depth_array = self.zed.get_depth_array()
-            goal = (depth_array.shape[0]//2, depth_array.shape[1]//2)
-
-            velocity_commands = self.obstacle_avoidance_policy(depth_array, goal)
 
             pid_setpoints = [
-                0.12 * rx_data[3] - 180 + velocity_commands[1],
-                -0.03 * rx_data[1] + 45 + velocity_commands[0],
-                -0.03 * rx_data[0] + 45 + velocity_commands[0]
+                0.12 * rx_data[3] - 180,
+                -0.03 * rx_data[1] + 45,
+                -0.03 * rx_data[0] + 45
             ]
 
             out_speeds = [int(self.throttle_scale * rx_data[2]) + 500] * 4
@@ -82,5 +87,5 @@ if __name__ == '__main__':
     try:
         flight_controller.run()
     except KeyboardInterrupt:
-        print("Received termination command")
+        flight_controller.logger.info("Received termination command")
         flight_controller.close() 
