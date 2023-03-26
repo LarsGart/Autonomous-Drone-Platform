@@ -29,7 +29,7 @@ sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
 from motor_model import Motors
 from rx_model import RX
 from pid_model import PID
-from zed_sensor_model import ZedSensorModel
+from zed_model import ZedModel
 
 
 class FlightController:
@@ -50,7 +50,7 @@ class FlightController:
 
         self.motors = Motors()
         self.rx = RX()
-        self.zed = ZedSensorModel()
+        self.zed = ZedModel()
         self.pid_pitch = PID(self.kP[0], self.kI[0], self.kD[0], self.pid_limit)
         self.pid_roll = PID(self.kP[1], self.kI[1], self.kD[1], self.pid_limit)
         self.pid_yaw = PID(self.kP[2], self.kI[2], self.kD[2], self.pid_limit)
@@ -63,6 +63,7 @@ class FlightController:
     def run(self):
         while True:
             rx_data = self.rx.readRX()
+            pDelta = self.zed.get_position_diff()
             angs = self.zed.get_euler()
 
             pid_setpoints = [

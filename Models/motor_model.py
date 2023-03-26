@@ -1,7 +1,7 @@
 '''
 Author: Jerin Abraham
 
-This class handles outputting motor speeds
+This class handles outputting motor speeds to the motor controller MCU
 '''
 
 import serial

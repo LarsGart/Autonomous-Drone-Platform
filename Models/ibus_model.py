@@ -8,7 +8,6 @@ I removed the parts that weren't needed for this project and did some refactorin
 '''
 
 class IBus:
-
     def __init__(self, uart):
         self.uart = uart
         self.PROTOCOL_SERVO = 0x40
@@ -16,17 +15,20 @@ class IBus:
         self.PROTOCOL_OVERHEAD = 3
         self.PROTOCOL_LENGTH = 0x20
 
+
     def readUART(self):
         data = None
         while data is None:
             data = self.uart.read(1)
         return data
 
+
     @staticmethod
     def checksum(arr, initial):
         sum = initial + sum(arr)
         checksum = 0xFFFF - sum
         return checksum >> 8, checksum & 0xFF
+
 
     def readIBUS(self):
         data = self.readUART()
