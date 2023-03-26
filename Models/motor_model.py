@@ -18,7 +18,8 @@ class Motors:
     Closes and deletes the UART
     '''
     def __del__(self):
-        self.uart.close()
+        if (self.uart):
+            self.uart.close()
 
     '''
     Split speeds into MSB and LSB for each speed and send byte stream to speed controller via UART

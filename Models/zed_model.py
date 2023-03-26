@@ -21,49 +21,61 @@ class ZedModel:
     Initializes the Zed camera object
     '''
     def __init__(self):
-        logging.basicConfig(filename=f"{self.__class__.__name__}\
-                            _{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+        logging.basicConfig(filename=f"../Logs/{self.__class__.__name__}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
                             ,level=logging.DEBUG
                             ,format='%(asctime)s:%(levelname)s:%(message)s')
         self.logger = logging.getLogger()
-
+        
         # Create a ZEDCamera object
         self.zed = sl.Camera()
+        self.logger.info(f"ZedModel: {self.zed}")
 
         # Create a InitParameters object and set configuration parameters
         init_params = sl.InitParameters()
         init_params.camera_resolution = sl.RESOLUTION.HD720  # Use HD720 video mode (default fps: 60)
-        init_params.depth_mode = sl.DEPTH_MODE.NONE
+        self.logger.info(f"ZedModel: {init_params}")
 
         # Use a right-handed Y-up coordinate system
         init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP
         init_params.coordinate_units = sl.UNIT.METER  # Set units in meters
+        self.logger.info(f"ZedModel: {init_params}")
+
+        self.closeCamera()
 
         # Open the camera
         err = self.zed.open(init_params)
         if err != sl.ERROR_CODE.SUCCESS:
+            self.logger.error(f"ZedModel: {err}")
+            self.zed.close()
             exit(1)
 
-        # Enable positional tracking with default parameters.
-        py_transform = sl.Transform()
+        # Enable positional tracking with default parameters
+        py_transform = sl.Transform()  # First create a Transform object for TrackingParameters object
         tracking_parameters = sl.PositionalTrackingParameters(_init_pos=py_transform)
         err = self.zed.enable_positional_tracking(tracking_parameters)
         if err != sl.ERROR_CODE.SUCCESS:
+            self.logger.warning(f"ZedModel: {err}")
+            self.zed.close()
             exit(1)
 
         # Enable spatial mapping
         mapping_parameters = sl.SpatialMappingParameters(map_type=sl.SPATIAL_MAP_TYPE.FUSED_POINT_CLOUD)
         err = self.zed.enable_spatial_mapping(mapping_parameters)
         if err != sl.ERROR_CODE.SUCCESS:
+            self.logger.warning(f"ZedModel: {err}")
+            self.zed.close()
             exit(1)
-
-        # Initialize previous position to (0, 0, 0)
-        self.prev_position = sl.Translation()
 
         # Define camera information
         self.info = self.zed.get_camera_information()
         self.sensors = ['accelerometer', 'gyroscope']
         self.logger.info("ZedSensorModel initialized")
+
+        self.zed_pose = sl.Pose()
+
+        # Initialize previous position to (0, 0, 0)
+        self.zed.get_position(self.zed_pose, sl.REFERENCE_FRAME.WORLD)
+        self.prev_position = self.zed_pose.get_translation(sl.Translation()).get()
 
 
     def closeCamera(self):
@@ -73,7 +85,7 @@ class ZedModel:
             self.zed.close()
             self.logger.info("Camera closed")
         else:
-            self.logger.warning("Camera not open")
+            self.logger.info("Camera not open")
 
 
     def get_camera_configuration(self):
@@ -164,14 +176,17 @@ class ZedModel:
         # Grab data for one frame
         if self.zed.grab() == sl.ERROR_CODE.SUCCESS:
             # Get the current position of the camera
-            curr_position = sl.Translation()
-            self.zed.get_position(curr_position)
+            self.zed.get_position(self.zed_pose, sl.REFERENCE_FRAME.WORLD)
+
+            # Get current zed position
+            curr_position = self.zed_pose.get_translation(sl.Translation()).get()
 
             # Calculate the difference in position from the previous timestep
-            position_diff = curr_position.get() - self.prev_position.get()
+            position_diff = curr_position - self.prev_position
 
             # Update the previous position to the current position for the next iteration
             self.prev_position = curr_position
-
+            self.logger.info(f"Position diff: {position_diff} [m]")
+            print((f"Position diff: {position_diff} [m]"))
             return position_diff
     
