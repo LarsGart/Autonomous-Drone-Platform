@@ -3,8 +3,6 @@ Author: house4hack
 Editor: jerinabr
 
 Code taken from https://github.com/house4hack/circuitpython-ibus
-
-I removed the parts that weren't needed for this project and did some refactoring
 '''
 
 class IBus:
@@ -23,11 +21,19 @@ class IBus:
         return data
 
 
-    @staticmethod
-    def checksum(arr, initial):
-        sum = initial + sum(arr)
+    #@staticmethod
+    def checksum(self, arr, initial):
+        # sum = initial + sum(arr)
+        # checksum = 0xFFFF - sum
+        # return checksum >> 8, checksum & 0xFF
+        sum = initial
+        for val in arr:
+            sum += val
         checksum = 0xFFFF - sum
-        return checksum >> 8, checksum & 0xFF
+        chA = checksum >> 8
+        chB = checksum & 0xFF
+        return chA, chB
+    
 
 
     def readIBUS(self):

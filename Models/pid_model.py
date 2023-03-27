@@ -8,8 +8,9 @@ import numpy as np
 
 
 class PID:
+    members = []
     '''
-    Initializes the pid coefficients and errors
+    Initializes pid coefficients and errors
 
     PARAMETERS:
         kP (float): Proportional coefficient of the PID loop
@@ -21,6 +22,8 @@ class PID:
         self.ctrlInput, self.worldInput, self.output = 0, 0, 0
         self.err, self.deltaErr, self.errSum, self.prevErr = 0, 0, 0, 0
         self.kP, self.kD, self.kI, self.limit = kP, kI, kD, limit
+        PID.members.append(self)
+
 
     def __calcErr(self):
         self.err = self.worldInput - self.ctrlInput
@@ -28,11 +31,15 @@ class PID:
             self.errSum = np.clip(self.errSum + self.err, -self.limit/self.kI, self.limit/self.kI)
         self.deltaErr, self.prevErr = self.err - self.prevErr, self.err
         
+
     def __calcPID(self):
         self.output = np.clip(self.kP*self.err + self.kI*self.errSum + self.kD*self.deltaErr, -self.limit, self.limit)
     
+
     def resetError(self):
-        self.err, self.deltaErr, self.errSum, self.prevErr = 0, 0, 0, 0
+        for member in PID.members:
+            member.err, member.deltaErr, member.errSum, member.prevErr = 0, 0, 0, 0
+
 
     '''
     Calculate PID output from desired value and measured world value
