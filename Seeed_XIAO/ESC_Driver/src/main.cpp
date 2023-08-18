@@ -1,6 +1,9 @@
 #include <Arduino.h>
 #include <Servo.h>
 
+#define USB Serial
+#define Jetson Serial1
+
 // Define ESCs
 Servo m[4];
 
@@ -10,6 +13,9 @@ int speed[4] = {1000, 1000, 1000, 1000};
 // Define controller state
 enum CTRL_STATES {waitForConnection, testConnection, receiveSpeed};
 enum CTRL_STATES ctrlSm;
+
+// Enumerate ASCII values
+enum ASCII {STX = 2, EOT = 4, ENQ = 5, ACK = 6, NACK = 21, CAN = 24, ESC = 27};
 
 // Define speed byte array
 char speedBytes[8];
@@ -45,8 +51,8 @@ void decodeSpeeds() {
 }
 
 void getSpeedBytes(char c) {
-   // '<' character initiates start of motor speed byte stream
-   if (c == '<' && bytesRead == 0) {
+   // STX character initiates start of motor speed byte stream
+   if (c == STX && bytesRead == 0) {
       readingData = true;
       memset(speedBytes, 0, 8);
    }
@@ -71,10 +77,10 @@ void setup() {
    m[3].attach(9);
 
    // Initialize USB Serial port
-   Serial.begin(115200);
+   USB.begin(115200);
 
    // Initialize Jetson Serial port
-   Serial1.begin(115200);
+   Jetson.begin(115200);
 
    // Set state machine to default state
    ctrlSm = waitForConnection;
@@ -92,32 +98,40 @@ void loop() {
       unsigned long currentTime = millis();
       if (currentTime - lastTx > 100) {
          lastTx = currentTime;
-         Serial1.write(5);
+         Jetson.write(ENQ);
       }
 
-      // If an ACK is received, advance to the testConnection state
-      if (Serial1.available() > 0) {
-         char c = Serial1.read();
-         if (c == 6) {
+      if (Jetson.available() > 0) {
+         char c = Jetson.read();
+         // If an ACK is received, advance to the testConnection state
+         if (c == ACK) {
             ctrlSm = testConnection;
+         }
+         // If an ENQ is received, report back the waitForConnection state
+         else if (c == ENQ) {
+            Jetson.write(waitForConnection);
          }
       }
    }
    else if (ctrlSm == testConnection) {
-      if (Serial1.available() > 0) {
-         char c = Serial1.read();
+      if (Jetson.available() > 0) {
+         char c = Jetson.read();
          // If an EOT is received, advance to the receiveSpeed state
-         if (c == 4 && readingData == false) {
+         if (c == EOT && !readingData) {
             ctrlSm = receiveSpeed;
          }
          // If an ACK is received, we know the calculated speeds and connection are good
-         else if (c == 6 && readingData == false) {
+         else if (c == ACK && !readingData) {
          }
          // If a NACK is received, the Jetson received the wrong speeds back
          // Jump to the waitForConnection state
-         else if (c == 21 && readingData == false) {
+         else if (c == NACK && !readingData) {
             ctrlSm = waitForConnection;
             resetSpeeds();
+         }
+         // If an ENQ is received, report back the testConnection state
+         else if (c == ENQ && !readingData) {
+            Jetson.write(testConnection);
          }
          // If it's another character, then treat it as part of the speed bytes
          else {
@@ -125,7 +139,7 @@ void loop() {
             if (speedUpdated) {
                speedUpdated = false;
                // Send decoded speeds back to Jetson as 4 comma-separated numbers
-               Serial1.printf("%d,%d,%d,%d\n",
+               Jetson.printf("%d,%d,%d,%d\n",
                   speedBytes[0] << 8 | speedBytes[1],
                   speedBytes[2] << 8 | speedBytes[3],
                   speedBytes[4] << 8 | speedBytes[5],
@@ -136,16 +150,20 @@ void loop() {
       }
    }
    else if (ctrlSm == receiveSpeed) {
-      if (Serial1.available() > 0) {
-         char c = Serial1.read();
+      if (Jetson.available() > 0) {
+         char c = Jetson.read();
          // If an ESC is received, close connection and return to waitForConnection state
-         if (c == 27 && readingData == false) {
+         if (c == ESC && !readingData) {
             ctrlSm = waitForConnection;
             resetSpeeds();
          }
          // If a CAN is received, emergency stop the motors
-         else if (c == 24 && readingData == false) {
+         else if (c == CAN && !readingData) {
             resetSpeeds();
+         }
+         // If an ENQ is received, report back the receiveSpeed state
+         else if (c == ENQ && !readingData) {
+            Jetson.write(receiveSpeed);
          }
          // If it's another character, treat it as part of the speed bytes
          else {
