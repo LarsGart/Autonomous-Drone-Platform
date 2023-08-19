@@ -23,6 +23,9 @@ int bytesRead = 0;
 bool readingData = false;
 bool speedUpdated = false;
 
+// Define LED state
+bool ledState = false;
+
 // Define time
 unsigned long lastTx = 0;
 
@@ -52,19 +55,17 @@ void decodeSpeeds() {
 
 void getSpeedBytes(char c) {
    // STX character initiates start of motor speed byte stream
-   if (c == STX && bytesRead == 0) {
+   if (c == STX && !readingData) {
+      bytesRead = 0;
       readingData = true;
       memset(speedBytes, 0, 8);
    }
-   else if (bytesRead == 8) {
-      bytesRead = 0;
-      readingData = false;
-      speedUpdated = true;
-   }
-   else {
-      if (readingData && bytesRead < 8) {
-         speedBytes[bytesRead] = c;
-         bytesRead++;
+   else if (readingData) {
+      speedBytes[bytesRead] = c;
+      bytesRead++;
+      if (bytesRead == 8) {
+         readingData = false;
+         speedUpdated = true;
       }
    }
 }
@@ -75,6 +76,9 @@ void setup() {
    m[1].attach(8);
    m[2].attach(5);
    m[3].attach(9);
+
+   // Set the onboard LED as an output
+   pinMode(PIN_LED2, OUTPUT);
 
    // Initialize USB Serial port
    USB.begin(115200);
@@ -93,12 +97,18 @@ void setup() {
 }
 
 void loop() {
+   // Set the LED
+   digitalWrite(PIN_LED2, (ledState ? LOW : HIGH));
+
+   // Control State Machine
    if (ctrlSm == waitForConnection) {
-      // Keep sending out ENQ every 100 ms
+      // Keep sending out ENQ every 250 ms
       unsigned long currentTime = millis();
-      if (currentTime - lastTx > 100) {
+      if (currentTime - lastTx > 250) {
          lastTx = currentTime;
          Jetson.write(ENQ);
+
+         ledState = !ledState;
       }
 
       if (Jetson.available() > 0) {
@@ -106,6 +116,7 @@ void loop() {
          // If an ACK is received, advance to the testConnection state
          if (c == ACK) {
             ctrlSm = testConnection;
+            ledState = true;
          }
          // If an ENQ is received, report back the waitForConnection state
          else if (c == ENQ) {
@@ -119,6 +130,7 @@ void loop() {
          // If an EOT is received, advance to the receiveSpeed state
          if (c == EOT && !readingData) {
             ctrlSm = receiveSpeed;
+            ledState = false;
          }
          // If an ACK is received, we know the calculated speeds and connection are good
          else if (c == ACK && !readingData) {
