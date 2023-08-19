@@ -1,33 +1,34 @@
-import serial
+'''
+If UART is in use, kill it with this command:
+sudo systemctl stop serial-getty@ttyS0.service
+Also use if you get this error: "device reports readiness to read but returned no data"
+'''
 
-# Define UART
-uart2 = serial.Serial(port="/dev/ttyS0", baudrate=115200)
+import sys
+sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
+from motor_model import Motors
 
-# Establish handshake
-uart2.write(bytearray([6]))
-
-# Function to output speeds
-def outputSpeeds(speeds):
-    # Create byte array to send to speed controller via UART
-    byte_arr = bytearray([60] + [(speeds[i] >> 8) & 255 for i in range(4)] + [speeds[i] & 255 for i in range(4)] + [62])
-    for b in byte_arr:
-        print(b)
-    uart2.write(byte_arr)
+test_motors = Motors()
+tests_pass = test_motors.test_motors()
 
 # Main function to receive motor speeds and output them
 def main():
-    while True:
-        spd = input("Enter motor speed: ")
-        try:
-            speedList = [int(x) for x in spd.split(",")]
-        except ValueError:
-            print("Invalid Speeds!")
-            speedList = [1000] * 4
-        outputSpeeds(speedList)
+   print('entering main')
+   while True:
+      spd = input("Enter motor speed: ")
+      try:
+         speedList = [int(x) for x in spd.split(",")]
+      except ValueError:
+         print("Invalid Speeds!")
+         speedList = [0] * 4
+      test_motors.output_speeds(speedList)
 
 if __name__ == '__main__':
-    try:
-        main()
-    except KeyboardInterrupt:
-        outputSpeeds([1000] * 4)
-        
+   try:
+      if tests_pass:
+         main()
+      else:
+         test_motors.disconnect()
+         del test_motors
+   except KeyboardInterrupt:
+      test_motors.disconnect()

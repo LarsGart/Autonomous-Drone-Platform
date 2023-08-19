@@ -8,12 +8,12 @@ CHANNEL MAPPINGS
 
 MOTOR MAPPINGS
 
-   3  ^  0
+  3  ^  0
    \_|_/
    |   |
    |___|
    /   \
-   2     1
+  2     1
 
 '''
 
@@ -50,6 +50,11 @@ class FlightController:
       self.sample_rate = 50
 
       self.motors = Motors()
+      self.motor_tests_pass = self.motors.test_motors()
+
+      if not self.motor_tests_pass:
+         self.logger.error("Motor Tests Failed")
+
       self.rx = RX()
       self.zed = ZedModel()
       self.pid_X = PID(self.kP[0], self.kI[0], self.kD[0], self.pid_limit)
