@@ -6,7 +6,7 @@ sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
 from flight_controller_model import FlightController
 
 if __name__ == '__main__':
-    flight_controller = FlightController()
+    flight_controller = FlightController(test_mode=True)
     try:
         flight_controller.logger.info("Entering Event Loop")
         flight_controller.run()

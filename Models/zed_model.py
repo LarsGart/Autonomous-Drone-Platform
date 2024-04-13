@@ -20,11 +20,13 @@ class ZedModel:
     '''
     Initializes the Zed camera object
     '''
-    def __init__(self):
-        logging.basicConfig(filename=f"../Logs/{self.__class__.__name__}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
-                            ,level=logging.DEBUG
-                            ,format='%(asctime)s:%(levelname)s:%(message)s')
-        self.logger = logging.getLogger()
+    def __init__(self,log=False):
+        self.log = log
+        if self.log:
+            logging.basicConfig(filename=f"../Logs/{self.__class__.__name__}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+                                ,level=logging.DEBUG
+                                ,format='%(asctime)s:%(levelname)s:%(message)s')
+            self.logger = logging.getLogger()
         
         # Create a ZEDCamera object
         self.zed = sl.Camera()
@@ -36,14 +38,17 @@ class ZedModel:
         # Use a right-handed Y-up coordinate system
         init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP
         init_params.coordinate_units = sl.UNIT.METER  # Set units in meters
-        self.logger.info(f"ZedModel Created: {self.zed}")
+
+        if self.log:
+            self.logger.info(f"ZedModel Created: {self.zed}")
 
         self.closeCamera()
 
         # Open the camera
         err = self.zed.open(init_params)
         if err != sl.ERROR_CODE.SUCCESS:
-            self.logger.error(f"ZedModel: {err}")
+            if self.log:
+                self.logger.error(f"ZedModel: {err}")
             self.zed.close()
             exit(1)
 
@@ -52,7 +57,8 @@ class ZedModel:
         tracking_parameters = sl.PositionalTrackingParameters(_init_pos=py_transform)
         err = self.zed.enable_positional_tracking(tracking_parameters)
         if err != sl.ERROR_CODE.SUCCESS:
-            self.logger.warning(f"ZedModel: {err}")
+            if log:
+                self.logger.warning(f"ZedModel: {err}")
             self.zed.close()
             exit(1)
 
@@ -80,15 +86,17 @@ class ZedModel:
         # Disable spatial mapping and close the camera
             self.zed.disable_spatial_mapping()
             self.zed.close()
-            self.logger.info("Camera closed")
+            if self.log:
+                self.logger.info("Camera closed")
 
 
     def get_camera_configuration(self):
-        self.logger.info(self.info)
-        self.logger.info(f"Camera Model: {self.info.camera_model}")
-        self.logger.info(f"Serial Number: {self.info.serial_number}")
-        self.logger.info(f"Camera Firmware: {self.info.camera_configuration.firmware_version}")
-        self.logger.info(f"Sensors Firmware: {self.info.sensors_configuration.firmware_version}")
+        if self.log:
+            self.logger.info(self.info)
+            self.logger.info(f"Camera Model: {self.info.camera_model}")
+            self.logger.info(f"Serial Number: {self.info.serial_number}")
+            self.logger.info(f"Camera Firmware: {self.info.camera_configuration.firmware_version}")
+            self.logger.info(f"Sensors Firmware: {self.info.sensors_configuration.firmware_version}")
         return self.info
         
 
@@ -98,7 +106,8 @@ class ZedModel:
             quaternion = self.sensors_data.get_imu_data().get_pose().get_orientation().get()
             return quaternion
         else:
-            self.logger.warning("IMU data has not been updated")
+            if self.log:
+                self.logger.warning("IMU data has not been updated")
             return None
     
 
@@ -108,18 +117,21 @@ class ZedModel:
 
         t0 = +2.0 * (w * x + y * z)
         t1 = +1.0 - 2.0 * (x * x + y * y)
-        roll_x = math.atan2(t0, t1)
+        pitch = math.atan2(t0, t1)
      
         t2 = +2.0 * (w * y - z * x)
         t2 = +1.0 if t2 > +1.0 else t2
         t2 = -1.0 if t2 < -1.0 else t2
-        pitch_y = math.asin(t2)
+        yaw = math.asin(t2)
      
         t3 = +2.0 * (w * z + x * y)
         t4 = +1.0 - 2.0 * (y * y + z * z)
-        yaw_z = math.atan2(t3, t4)
+        roll = math.atan2(t3, t4)
      
-        return [roll_x, pitch_y, yaw_z]
+        return {'roll': roll, 'pitch': pitch, 'yaw': yaw}
+
+    def get_euler_in_degrees(self):
+        return {key: value * 180 / math.pi for key, value in self.get_euler().items()}  
     
 
     '''
@@ -129,7 +141,7 @@ class ZedModel:
     def get_position_diff(self):
         # Grab data for one frame
         if self.zed.grab() == sl.ERROR_CODE.SUCCESS:
-            current_position = self.get_current_pos_global()
+            current_position = self.get_pos_global()
             position_diff = current_position - self.previous_position  # Calculate the difference in position from the previous timestep
             self.previous_position = current_position  # Update the previous position to the current position for the next iteration
             return position_diff

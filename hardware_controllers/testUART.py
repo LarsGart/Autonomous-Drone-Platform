@@ -8,7 +8,8 @@ def main():
    while True:
       chars = input("Enter chars: ")
       char_arr = chars.encode()
-      uart2.write(char_arr)
+      print(char_arr)
+      # uart2.write(char_arr)
 
 if __name__ == '__main__':
    main()

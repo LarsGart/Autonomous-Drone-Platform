@@ -36,7 +36,7 @@ class Motors:
                recvSpd = speed_list[i]
                calcSpd = test_speeds[i]
                if (calcSpd != recvSpd):
-                  print(f"Test Failed: Expected {self.scale_speeds(test_speeds)}, Received {speed_list_unscaled}")
+                  print(f"Test Failed: Expected {self.scale_speeds(test_speeds)}, Received {speed_list}")
                   self.uart.write(bytearray([21])) # Send NACK
                   
                   return False
@@ -47,7 +47,7 @@ class Motors:
       print("Tests passed")
 
       # Set motors to 0 speed and return True to indicate the motors have passed testing
-      self.output_speeds([0, 0, 0, 0])
+      self.zero_throttle()
       self.test_passed = True
       return True
 
@@ -104,6 +104,12 @@ class Motors:
          byte_stream = [2] + [speed >> i & 255 for speed in scaled_speeds for i in (8, 0)] # Sends a '<' and '>'.
          self.uart.write(bytearray(byte_stream))
          return byte_stream
+      
+   '''
+   Sends zero throttle data to the motors
+   '''
+   def zero_throttle(self):
+      self.output_speeds([0] * 4)
     
    def validate_speeds(self, speeds):
       if len(speeds) != 4:
