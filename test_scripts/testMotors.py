@@ -11,17 +11,26 @@ from motor_model import Motors
 test_motors = Motors()
 tests_pass = test_motors.test_motors()
 
+def outputSpeeds(speeds: list):
+   reordered_speeds = [
+      speeds[0],
+      speeds[3],
+      speeds[1],
+      speeds[2]
+   ]
+   test_motors.output_speeds(reordered_speeds)
+
 # Main function to receive motor speeds and output them
 def main():
    print('entering main')
    while True:
-      spd = input("Enter motor speed: ")
+      spd = input("Enter motor speed (0-100): ")
       try:
-         speedList = [int(x) for x in spd.split(",")]
+         speedList = [min(15, int(x)) for x in spd.split(",")]
       except ValueError:
          print("Invalid Speeds!")
          speedList = [0] * 4
-      test_motors.output_speeds(speedList)
+      outputSpeeds(speedList)
 
 if __name__ == '__main__':
    try:

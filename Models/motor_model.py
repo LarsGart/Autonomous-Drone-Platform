@@ -44,7 +44,7 @@ class Motors:
       # End testing and set MCU into receiveSpeed state
       self.uart.write(bytearray([6])) # Send ACK
       self.uart.write(bytearray([4])) # Send EOT
-      print("Tests passed")
+      print('Motor tests passed')
 
       # Set motors to 0 speed and return True to indicate the motors have passed testing
       self.zero_throttle()
