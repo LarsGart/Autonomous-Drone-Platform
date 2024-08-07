@@ -7,8 +7,8 @@
 // Define ESCs
 Servo m[4];
 
-// Define speeds
-int speed[4] = {1000, 1000, 1000, 1000};
+// Define motor pins
+const uint8_t MOTOR_PINS[4] = {4, 8, 5, 9};
 
 // Define controller state
 enum CTRL_STATES {waitForConnection, testConnection, receiveSpeed};
@@ -29,16 +29,31 @@ bool ledState = false;
 // Define time
 unsigned long lastTx = 0;
 
+// DSHOT constants
+const uint16_t DSHOT_BIT_0 = 3;
+const uint16_t DSHOT_BIT_1 = 6;
+const uint16_t DSHOT_FRAME_LENGTH = 16;
+const uint16_t DSHOT_MIN_THROTTLE = 48;
+const uint16_t DSHOT_MAX_THROTTLE = 2047;
+
+// Throttle constants
+const uint16_t MIN_THROTTLE = 1000;
+const uint16_t MAX_THROTTLE = 2000;
+
+// Define speeds
+uint16_t speed[4] = {MIN_THROTTLE, MIN_THROTTLE, MIN_THROTTLE, MIN_THROTTLE};
+
 void resetSpeeds() {
    for (int i = 0; i < 4; i++) {
-      speed[i] = 1000;
-      m[i].writeMicroseconds(1000);
+      speed[i] = MIN_THROTTLE;
+      sendDshotFrame(MOTOR_PINS[i], DSHOT_MIN_THROTTLE);
    }
 }
 
 void outputSpeeds() {
    for (int i = 0; i < 4; ++i) {
-      m[i].writeMicroseconds(speed[i]);
+      uint16_t dshotValue = map(speed[i], MIN_THROTTLE, MAX_THROTTLE, DSHOT_MIN_THROTTLE, DSHOT_MAX_THROTTLE);
+      sendDshotFrame(MOTOR_PINS[i], dshotValue);
    }
 }
 
@@ -46,8 +61,8 @@ void decodeSpeeds() {
    for (int i = 0; i < 4; ++i) {
       int mSpeed = (speedBytes[2 * i] << 8 | speedBytes[2 * i + 1]);
 
-      // Only update speed if it's in the 1000-2000 range
-      if (mSpeed >= 1000 && mSpeed <= 2000) {
+      // Only update speed if it's within the throttle range
+      if (mSpeed >= MIN_THROTTLE && mSpeed <= MAX_THROTTLE) {
          speed[i] = mSpeed;
       }
    }
@@ -70,12 +85,42 @@ void getSpeedBytes(char c) {
    }
 }
 
+void sendDshotFrame(uint8_t pin, uint16_t value) {
+   // Calculate checksum
+   uint16_t packet = (value << 1) | 0;  // Throttle + telemetry bit
+   uint16_t csum = 0;
+   uint16_t csum_data = packet;
+   for (int i = 0; i < 3; i++) {
+      csum ^= csum_data;
+      csum_data >>= 4;
+   }
+   csum &= 0xf;
+   packet = (packet << 4) | csum;
+
+   // Send DSHOT frame
+   noInterrupts();
+   for (int i = 0; i < DSHOT_FRAME_LENGTH; i++) {
+      if (packet & 0x8000) {
+         digitalWrite(pin, HIGH);
+         delayMicroseconds(DSHOT_BIT_1);
+         digitalWrite(pin, LOW);
+         delayMicroseconds(DSHOT_BIT_0);
+      } else {
+         digitalWrite(pin, HIGH);
+         delayMicroseconds(DSHOT_BIT_0);
+         digitalWrite(pin, LOW);
+         delayMicroseconds(DSHOT_BIT_1);
+      }
+      packet <<= 1;
+   }
+   interrupts();
+}
+
 void setup() {
    // Attach ESCs to the pins
-   m[0].attach(4);
-   m[1].attach(8);
-   m[2].attach(5);
-   m[3].attach(9);
+   for (int i = 0; i < 4; i++) {
+      m[i].attach(MOTOR_PINS[i]);
+   }
 
    // Set the onboard LED as an output
    pinMode(PIN_LED2, OUTPUT);
