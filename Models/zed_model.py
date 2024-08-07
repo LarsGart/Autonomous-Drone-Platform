@@ -42,6 +42,8 @@ class ZedModel:
         if self.log:
             self.logger.info(f"ZedModel Created: {self.zed}")
 
+        self.imu_data = sl.IMUData()
+
         self.closeCamera()
 
         # Open the camera
@@ -98,7 +100,12 @@ class ZedModel:
             self.logger.info(f"Camera Firmware: {self.info.camera_configuration.firmware_version}")
             self.logger.info(f"Sensors Firmware: {self.info.sensors_configuration.firmware_version}")
         return self.info
-        
+
+    def get_y_angular_velocity(self):
+        self.sensors_data = sl.SensorsData()
+        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS:
+            angular_velocity = self.sensors_data.get_imu_data().get_angular_velocity()
+            return angular_velocity[1]
 
     def get_quaternion(self):
         self.sensors_data = sl.SensorsData()

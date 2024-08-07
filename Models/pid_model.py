@@ -33,7 +33,8 @@ class PID:
         self.err = self.worldInput - self.ctrlInput
         if self.kI > 0:
             self.errSum = np.clip(self.errSum + self.err, -self.limit/self.kI, self.limit/self.kI)
-        self.deltaErr, self.prevErr = self.err - self.prevErr, self.err
+        self.deltaErr = self.err - self.prevErr
+        self.prevErr = self.err
         
 
     def __calcPID(self):
