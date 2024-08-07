@@ -62,7 +62,7 @@ void decodeSpeeds() {
       int mSpeed = (speedBytes[2 * i] << 8 | speedBytes[2 * i + 1]);
 
       // Only update speed if it's within the throttle range
-      if (mSpeed >= MAX_THROTTLE && mSpeed <= MIN_THROTTLE) {
+      if (mSpeed >= MIN_THROTTLE && mSpeed <= MAX_THROTTLE) {
          speed[i] = mSpeed;
       }
    }
