@@ -37,16 +37,16 @@ const uint16_t DSHOT_MIN_THROTTLE = 48;
 const uint16_t DSHOT_MAX_THROTTLE = 2047;
 
 // Throttle constants
-const uint16_t MIN_THROTTLE = 1000;
-const uint16_t MAX_THROTTLE = 2000;
+const uint16_t MIN_THROTTLE = 0;
+const uint16_t MAX_THROTTLE = 1999;
 
 // Define speeds
-uint16_t speed[4] = {MIN_THROTTLE, MIN_THROTTLE, MIN_THROTTLE, MIN_THROTTLE};
+uint16_t speed[4] = {DSHOT_MIN_THROTTLE, DSHOT_MIN_THROTTLE, DSHOT_MIN_THROTTLE, DSHOT_MIN_THROTTLE};
 
 void resetSpeeds() {
    for (int i = 0; i < 4; i++) {
-      speed[i] = MIN_THROTTLE;
-      sendDshotFrame(MOTOR_PINS[i], DSHOT_MIN_THROTTLE);
+      speed[i] = DSHOT_MIN_THROTTLE;
+      sendDshotFrame(MOTOR_PINS[i], speed[i]);
    }
 }
 
@@ -62,7 +62,7 @@ void decodeSpeeds() {
       int mSpeed = (speedBytes[2 * i] << 8 | speedBytes[2 * i + 1]);
 
       // Only update speed if it's within the throttle range
-      if (mSpeed >= MIN_THROTTLE && mSpeed <= MAX_THROTTLE) {
+      if (mSpeed >= DSHOT_MIN_THROTTLE && mSpeed <= DSHOT_MAX_THROTTLE) {
          speed[i] = mSpeed;
       }
    }
