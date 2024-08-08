@@ -1,14 +1,14 @@
 import sys
 
-sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
+sys.path.append("/home/drone/Autonomous-Drone-Platform/models")
 
-from zed_model import ZedModel
+from zed import Zed
 
 def main():
-    zed = ZedModel()
+    zed = Zed()
     p0 = zed.get_pos_relative()
     print(p0)
-    zed.closeCamera()
+    zed.close()
 
 if __name__ == '__main__':
     try:

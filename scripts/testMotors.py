@@ -5,8 +5,8 @@ Also use if you get this error: "device reports readiness to read but returned n
 '''
 
 import sys
-sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
-from motor_model import Motors
+sys.path.append("/home/drone/Autonomous-Drone-Platform/models")
+from motor import Motors
 
 test_motors = Motors()
 tests_pass = test_motors.test_motors()

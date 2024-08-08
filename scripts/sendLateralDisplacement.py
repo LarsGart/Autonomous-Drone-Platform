@@ -3,9 +3,9 @@ import time
 import sys
 import json
 
-sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
+sys.path.append("/home/drone/Autonomous-Drone-Platform/models")
 
-from zed_model import ZedModel
+from zed import Zed
 
 socc = None
 
@@ -15,7 +15,7 @@ def main():
 
    socc = socket.socket(family = socket.AF_INET, type = socket.SOCK_DGRAM)
 
-   zed = ZedModel(log=False)
+   zed = Zed()
 
    prev_pos = [0,0,0]
 

@@ -8,22 +8,16 @@ import serial
 import random
 import numpy as np
 
+MOTOR_COUNT = 4
+TEST_RANGE = 100
+
 
 class Motors:
    '''
    Instantiates the UART and connects to the MCU
    '''
    def __init__(self):
-      # logging.basicConfig(filename=f"/home/drone/Autonomous-Drone-Platform/Logs/{self.__class__.__name__}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
-      #                      ,level=logging.DEBUG
-      #                      ,format='%(asctime)s:%(levelname)s:%(message)s')
-      # self.logger = logging.getLogger()
-      # Define object variables
       self.test_passed = False
-      self.test_range = 100
-      self.num_motors = 4
-
-      # Connect to the MCU
       self.connect()
 
    '''
@@ -32,12 +26,12 @@ class Motors:
    def test_motors(self):
       print("Testing Motors")
       # Send 100 test speeds to verify connection and encryption/decryption
-      for _ in range(self.test_range):
-         test_speeds = [random.randint(0, 100) for x in range(self.num_motors)]
-         self.output_speeds(test_speeds)
+      for _ in range(TEST_RANGE):
+         test_speeds = [random.randint(0, 100) for x in range(MOTOR_COUNT)]
+         self.write_to_uart(test_speeds)
          speed_list_unscaled = [x for x in self.uart.read_until().decode().strip().split(",")]
          speed_list = [int((int(x) - 1000) / 10) for x in speed_list_unscaled]
-         for i in range(self.num_motors):
+         for i in range(MOTOR_COUNT):
                recvSpd = speed_list[i]
                calcSpd = test_speeds[i]
                if (calcSpd != recvSpd):
@@ -102,7 +96,7 @@ class Motors:
    '''
    Splits speeds into MSB and LSB for each speed and send byte stream to speed controller via UART
    '''
-   def output_speeds(self, speeds: list):
+   def write_to_uart(self, speeds: list):
       if self.validate_speeds(speeds):
          scaled_speeds = self.scale_speeds(speeds)
          byte_stream = [2] + [speed >> i & 255 for speed in scaled_speeds for i in (8, 0)] # Sends a '<' and '>'.
@@ -113,7 +107,7 @@ class Motors:
    Sends zero throttle data to the motors
    '''
    def zero_throttle(self):
-      self.output_speeds([0] * 4)
+      self.write_to_uart([0] * 4)
     
    def validate_speeds(self, speeds):
       if len(speeds) != 4:
@@ -127,3 +121,4 @@ class Motors:
       scaled_speeds = [np.clip(int(speed * 10 + 1000), 1000, 2000) for speed in speeds]
       print(scaled_speeds)
       return scaled_speeds
+

@@ -16,7 +16,7 @@ import math
 from datetime import datetime
 
 
-class ZedModel:
+class Zed:
     '''
     Initializes the Zed camera object
     '''
@@ -44,7 +44,7 @@ class ZedModel:
 
         self.imu_data = sl.IMUData()
 
-        self.closeCamera()
+        self.close()
 
         # Open the camera
         err = self.zed.open(init_params)
@@ -63,6 +63,8 @@ class ZedModel:
                 self.logger.warning(f"ZedModel: {err}")
             self.zed.close()
             exit(1)
+        if self.log:
+            self.logger.info("Successfully initialized ZED")
 
         # Enable spatial mapping
         # mapping_parameters = sl.SpatialMappingParameters(map_type=sl.SPATIAL_MAP_TYPE.FUSED_POINT_CLOUD)
@@ -83,7 +85,7 @@ class ZedModel:
         self.previous_position = self.zed_pose.get_translation(sl.Translation()).get()
 
 
-    def closeCamera(self):
+    def close(self):
         if self.zed.is_opened():
         # Disable spatial mapping and close the camera
             self.zed.disable_spatial_mapping()

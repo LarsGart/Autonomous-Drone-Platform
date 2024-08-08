@@ -1,8 +1,8 @@
 import sys
 
-sys.path.append("/home/drone/Autonomous-Drone-Platform/Models")
+sys.path.append("/home/drone/Autonomous-Drone-Platform/models")
 
-from rx_model import RX
+from rx import RX
 
 rx = RX()
 
