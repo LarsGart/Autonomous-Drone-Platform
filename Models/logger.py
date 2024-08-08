@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime as dt
 
 class Logger:
     log_file = None
@@ -7,8 +7,9 @@ class Logger:
     @classmethod
     def initialize_logger(cls, log_file=None):
         if log_file is None:
-            log_file = f"/home/drone/Autonomous-Drone-Platform/Logs/drone_{datetime.now().strftime('%m-%d_%H-%M-%S')}.log"
-        
+            path = "/home/drone/Autonomous-Drone-Platform/Logs/"
+            log_file = f"{path}flight_{dt.now().strftime('%m-%d_%H-%M-%S')}.log"
+
         cls.log_file = log_file
         logging.basicConfig(
             filename=cls.log_file,

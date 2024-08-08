@@ -11,9 +11,6 @@ The ZedModel class has methods to:
 '''
 import pyzed.sl as sl
 import math
-import logging
-import math
-from datetime import datetime
 from models.logger import Logger
 
 

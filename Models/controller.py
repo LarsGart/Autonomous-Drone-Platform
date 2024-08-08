@@ -30,6 +30,7 @@ RX = Receiver()
 MOTORS = Motors()
 ZED = Zed()
 
+MOTOR_MAPPING = [0, 3, 1, 2]
 SAMPLE_RATE = 50
 PID_LIMIT = 3
 THROTTLE_CUTOFF = 1012
@@ -47,18 +48,9 @@ class Controller(Logger):
    def __init__(self):
       super().__init__()
       self.log(f"\nP = {KP}\nI = {KI}\nD = {KD}")
-   
-   def write_speeds(self, speeds: list):
-      reordered_speeds = [
-         speeds[0],
-         speeds[3],
-         speeds[1],
-         speeds[2]
-      ]
-      MOTORS.write_to_uart(reordered_speeds)
 
    def run(self):
-      self.log('Entering controller loop.')
+      self.log('Entering control loop.')
       pSet = ZED.get_pos_global()
       p0 = pSet
       p1 = None
@@ -127,6 +119,10 @@ class Controller(Logger):
          # out_speeds = [int(THROTTLE_SCALE * rx_data[2]) + 500] * 4
          # MOTORS.write_speeds(out_speeds)
          # sleep(1 / SAMPLE_RATE)
+         
+   def write_speeds(self, speeds):
+      reordered_speeds = [speeds[i] for i in MOTOR_MAPPING]
+      MOTORS.write_to_uart(reordered_speeds)
 
    def close(self):
       MOTORS.zero_throttle()
