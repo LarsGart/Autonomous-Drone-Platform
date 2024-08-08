@@ -1,8 +1,9 @@
 import sys
-sys.path.append("/home/drone/Autonomous-Drone-Platform/models")
-from controller import Controller
+from models.controller import Controller
+from models.logger import Logger
 
 if __name__ == '__main__':
+    Logger.initialize_logger()
     C = Controller()
     try:
         C.run()

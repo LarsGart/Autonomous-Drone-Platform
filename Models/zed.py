@@ -14,22 +14,17 @@ import math
 import logging
 import math
 from datetime import datetime
+from models.logger import Logger
 
 
-class Zed:
+class Zed(Logger):
     '''
     Initializes the Zed camera object
     '''
-    def __init__(self,log=False):
-        self.log = log
-        if self.log:
-            logging.basicConfig(filename=f"../Logs/{self.__class__.__name__}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
-                                ,level=logging.DEBUG
-                                ,format='%(asctime)s:%(levelname)s:%(message)s')
-            self.logger = logging.getLogger()
+    def __init__(self):
         
         # Create a ZEDCamera object
-        self.zed = sl.Camera()
+        self.camera = sl.Camera()
 
         # Create a InitParameters object and set configuration parameters
         init_params = sl.InitParameters()
@@ -38,86 +33,81 @@ class Zed:
         # Use a right-handed Y-up coordinate system
         init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP
         init_params.coordinate_units = sl.UNIT.METER  # Set units in meters
-
-        if self.log:
-            self.logger.info(f"ZedModel Created: {self.zed}")
+        logs = []
+        logs.append(f"ZedModel Created: {self.camera}")
 
         self.imu_data = sl.IMUData()
 
         self.close()
 
         # Open the camera
-        err = self.zed.open(init_params)
+        err = self.camera.open(init_params)
         if err != sl.ERROR_CODE.SUCCESS:
-            if self.log:
-                self.logger.error(f"ZedModel: {err}")
-            self.zed.close()
-            exit(1)
+            logs.append(f"ZedModel: {err}")
+            self.camera.close()
+            # exit(1)
 
         # Enable positional tracking with default parameters
         py_transform = sl.Transform()  # First create a Transform object for TrackingParameters object
         tracking_parameters = sl.PositionalTrackingParameters(_init_pos=py_transform)
-        err = self.zed.enable_positional_tracking(tracking_parameters)
+        err = self.camera.enable_positional_tracking(tracking_parameters)
         if err != sl.ERROR_CODE.SUCCESS:
-            if log:
-                self.logger.warning(f"ZedModel: {err}")
-            self.zed.close()
+            logs.append(f"ZedModel: {err}")
+            self.camera.close()
             exit(1)
-        if self.log:
-            self.logger.info("Successfully initialized ZED")
 
         # Enable spatial mapping
         # mapping_parameters = sl.SpatialMappingParameters(map_type=sl.SPATIAL_MAP_TYPE.FUSED_POINT_CLOUD)
-        # err = self.zed.enable_spatial_mapping(mapping_parameters)
+        # err = self.camera.enable_spatial_mapping(mapping_parameters)
         # if err != sl.ERROR_CODE.SUCCESS:
         #     self.logger.warning(f"ZedModel: {err}")
-        #     self.zed.close()
+        #     self.camera.close()
         #     exit(1)
 
         # Define camera information
-        self.info = self.zed.get_camera_information()
+        self.info = self.camera.get_camera_information()
         self.sensors = ['accelerometer', 'gyroscope']
 
-        self.zed_pose = sl.Pose()
+        self.camera_pose = sl.Pose()
 
         # Initialize previous position to (0, 0, 0)
-        self.zed.get_position(self.zed_pose, sl.REFERENCE_FRAME.WORLD)
-        self.previous_position = self.zed_pose.get_translation(sl.Translation()).get()
+        self.camera.get_position(self.camera_pose, sl.REFERENCE_FRAME.WORLD)
+        self.previous_position = self.camera_pose.get_translation(sl.Translation()).get()
+        super().__init__()
+        for log in logs:
+            self.log(log)
 
 
     def close(self):
-        if self.zed.is_opened():
+        if self.camera.is_opened():
         # Disable spatial mapping and close the camera
-            self.zed.disable_spatial_mapping()
-            self.zed.close()
-            if self.log:
-                self.logger.info("Camera closed")
+            self.camera.disable_spatial_mapping()
+            self.camera.close()
+            self.log("Camera closed")
 
 
     def get_camera_configuration(self):
-        if self.log:
-            self.logger.info(self.info)
-            self.logger.info(f"Camera Model: {self.info.camera_model}")
-            self.logger.info(f"Serial Number: {self.info.serial_number}")
-            self.logger.info(f"Camera Firmware: {self.info.camera_configuration.firmware_version}")
-            self.logger.info(f"Sensors Firmware: {self.info.sensors_configuration.firmware_version}")
+        self.log(self.info)
+        self.log(f"Camera Model: {self.info.camera_model}")
+        self.log(f"Serial Number: {self.info.serial_number}")
+        self.log(f"Camera Firmware: {self.info.camera_configuration.firmware_version}")
+        self.log(f"Sensors Firmware: {self.info.sensors_configuration.firmware_version}")
         return self.info
 
     def get_y_angular_velocity(self):
         self.sensors_data = sl.SensorsData()
-        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS:
+        if self.camera.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS:
             angular_velocity = self.sensors_data.get_imu_data().get_angular_velocity()
             return angular_velocity[1]
 
     def get_quaternion(self):
         self.sensors_data = sl.SensorsData()
-        if self.zed.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS:
+        if self.camera.get_sensors_data(self.sensors_data, sl.TIME_REFERENCE.CURRENT) == sl.ERROR_CODE.SUCCESS:
             quaternion = self.sensors_data.get_imu_data().get_pose().get_orientation().get()
             return quaternion
         else:
-            if self.log:
-                self.logger.warning("IMU data has not been updated")
-            return None
+            self.log('IMU data has not been updated.', level='WARNING')
+            return [0, 0, 0, 0]
     
 
     def get_euler(self):
@@ -149,7 +139,7 @@ class Zed:
     '''
     def get_position_diff(self):
         # Grab data for one frame
-        if self.zed.grab() == sl.ERROR_CODE.SUCCESS:
+        if self.camera.grab() == sl.ERROR_CODE.SUCCESS:
             current_position = self.get_pos_global()
             position_diff = current_position - self.previous_position  # Calculate the difference in position from the previous timestep
             self.previous_position = current_position  # Update the previous position to the current position for the next iteration
@@ -157,23 +147,23 @@ class Zed:
     
 
     def get_pos_global(self):
-        if self.zed.grab() == sl.ERROR_CODE.SUCCESS:
+        if self.camera.grab() == sl.ERROR_CODE.SUCCESS:
             # Get the current pose information
-            self.zed.get_position(self.zed_pose, sl.REFERENCE_FRAME.WORLD)
+            self.camera.get_position(self.camera_pose, sl.REFERENCE_FRAME.WORLD)
 
             # Get current zed position
-            curr_position = self.zed_pose.get_translation(sl.Translation()).get()
+            curr_position = self.camera_pose.get_translation(sl.Translation()).get()
 
             return curr_position
         
 
     def get_pos_relative(self):
-        if self.zed.grab() == sl.ERROR_CODE.SUCCESS:
+        if self.camera.grab() == sl.ERROR_CODE.SUCCESS:
             # Get the current pose information
-            self.zed.get_position(self.zed_pose, sl.REFERENCE_FRAME.CAMERA)
+            self.camera.get_position(self.camera_pose, sl.REFERENCE_FRAME.CAMERA)
 
             # Get current zed position
-            curr_position = self.zed_pose.get_translation(sl.Translation()).get()
+            curr_position = self.camera_pose.get_translation(sl.Translation()).get()
 
             return curr_position
         

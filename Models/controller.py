@@ -16,22 +16,12 @@ MOTOR MAPPINGS
   2     1
 
 '''
-
-import sys
 import socket
-import numpy as np
-import logging
-from datetime import datetime
-import re
-
-sys.path.append("/home/drone/Autonomous-Drone-Platform/models")
-
-from motor import Motors
-from rx import RX as Receiver
-from pid import PID
-from pid import resetError
-from zed import Zed
-
+from models.logger import Logger
+from models.motor import Motors
+from models.rx import RX as Receiver
+from models.pid import PID, resetError
+from models.zed import Zed
 
 SOCKET = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
 SOCKET.setblocking(False)
@@ -53,14 +43,10 @@ ROLL  = PID(KP[0], KI[0], KD[0], PID_LIMIT)
 PITCH = PID(KP[1], KI[1], KD[1], PID_LIMIT)
 YAW   = PID(KP[2], KI[2], KD[2], PID_LIMIT)
 
-class Controller():
+class Controller(Logger):
    def __init__(self):
-      logging.basicConfig(filename=f"/home/drone/Autonomous-Drone-Platform/Logs/{self.__class__.__name__}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
-                           ,level=logging.DEBUG
-                           ,format='%(asctime)s:%(levelname)s:%(message)s')
-      self.logger = logging.getLogger()
-      self.logger.info(f"\nP = {KP}\nI = {KI}\nD = {KD}")
-      self.logger.info("Controller initialized.") # TODO: Controller should inherit from a base logger class
+      super().__init__()
+      self.log(f"\nP = {KP}\nI = {KI}\nD = {KD}")
    
    def write_speeds(self, speeds: list):
       reordered_speeds = [
@@ -72,7 +58,7 @@ class Controller():
       MOTORS.write_to_uart(reordered_speeds)
 
    def run(self):
-      self.logger.info('Entering controller loop.')
+      self.log('Entering controller loop.')
       pSet = ZED.get_pos_global()
       p0 = pSet
       p1 = None
@@ -110,7 +96,7 @@ class Controller():
          # lateral_error = ZED.get_pos_relative()
          # x_comp = 1000 * self.pid_roll.calc(0, lateral_error[0])
          # z_comp = 1000 * self.pid_yaw.calc(0, lateral_error[2])
-         # # self.logger.info(f"dX: {x_comp}\tdZ: {z_comp}")
+         # # self.log(f"dX: {x_comp}\tdZ: {z_comp}")
 
          # # Normalize throttle
          # throttle_norm = (rx_data[2] - 1000) / 1000
@@ -146,5 +132,4 @@ class Controller():
       MOTORS.zero_throttle()
       SOCKET.close()
       ZED.close()
-      print(f"\nP = {KP}\nI = {KI}\nD = {KD}")
 
