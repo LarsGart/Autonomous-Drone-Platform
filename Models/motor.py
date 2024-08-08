@@ -7,18 +7,20 @@ This class handles outputting motor speeds to the motor controller MCU
 import serial
 import random
 import numpy as np
+from models.logger import Logger
 
 MOTOR_COUNT = 4
 TEST_RANGE = 100
 
 
-class Motors:
+class Motors(Logger):
    '''
    Instantiates the UART and connects to the MCU
    '''
    def __init__(self):
       self.test_passed = False
       self.connect()
+      super().__init__()
 
    '''
    Tests the connection and speed transmission between the Jetson and the MCU

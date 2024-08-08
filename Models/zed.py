@@ -43,7 +43,7 @@ class Zed(Logger):
         # Open the camera
         err = self.camera.open(init_params)
         if err != sl.ERROR_CODE.SUCCESS:
-            logs.append(f"ZedModel: {err}")
+            logs.append(f"{err}")
             self.camera.close()
             # exit(1)
 
@@ -80,19 +80,9 @@ class Zed(Logger):
 
     def close(self):
         if self.camera.is_opened():
-        # Disable spatial mapping and close the camera
             self.camera.disable_spatial_mapping()
             self.camera.close()
             self.log("Camera closed")
-
-
-    def get_camera_configuration(self):
-        self.log(self.info)
-        self.log(f"Camera Model: {self.info.camera_model}")
-        self.log(f"Serial Number: {self.info.serial_number}")
-        self.log(f"Camera Firmware: {self.info.camera_configuration.firmware_version}")
-        self.log(f"Sensors Firmware: {self.info.sensors_configuration.firmware_version}")
-        return self.info
 
     def get_y_angular_velocity(self):
         self.sensors_data = sl.SensorsData()
@@ -109,7 +99,7 @@ class Zed(Logger):
             self.log('IMU data has not been updated.', level='WARNING')
             return [0, 0, 0, 0]
     
-
+    '''Returns the euler angles in radians: in the order of roll, pitch, yaw'''
     def get_euler(self):
         q = self.get_quaternion()
         x, y, z, w = q[0], q[1], q[2], q[3]
@@ -127,11 +117,11 @@ class Zed(Logger):
         t4 = +1.0 - 2.0 * (y * y + z * z)
         roll = math.atan2(t3, t4)
      
-        return {'roll': roll, 'pitch': pitch, 'yaw': yaw}
+        return roll, pitch, yaw
 
     def get_euler_in_degrees(self):
-        return {key: value * 180 / math.pi for key, value in self.get_euler().items()}  
-    
+        roll, pitch, yaw = self.get_euler()
+        return math.degrees(roll), math.degrees(pitch), math.degrees(yaw)
 
     '''
     Captures a single frame and calculates the difference in position
@@ -144,26 +134,25 @@ class Zed(Logger):
             position_diff = current_position - self.previous_position  # Calculate the difference in position from the previous timestep
             self.previous_position = current_position  # Update the previous position to the current position for the next iteration
             return position_diff
+        return [0, 0, 0]
     
 
     def get_pos_global(self):
         if self.camera.grab() == sl.ERROR_CODE.SUCCESS:
             # Get the current pose information
             self.camera.get_position(self.camera_pose, sl.REFERENCE_FRAME.WORLD)
-
             # Get current zed position
             curr_position = self.camera_pose.get_translation(sl.Translation()).get()
-
             return curr_position
+        return [0, 0, 0]
         
 
     def get_pos_relative(self):
         if self.camera.grab() == sl.ERROR_CODE.SUCCESS:
             # Get the current pose information
             self.camera.get_position(self.camera_pose, sl.REFERENCE_FRAME.CAMERA)
-
             # Get current zed position
             curr_position = self.camera_pose.get_translation(sl.Translation()).get()
-
             return curr_position
+        return [0, 0, 0]
         

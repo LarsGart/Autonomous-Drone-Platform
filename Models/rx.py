@@ -6,6 +6,7 @@ This class handles reading from the RC receiver
 import serial
 import numpy as np
 from ibus import IBus
+from models.logger import Logger
 
 UART = serial.Serial(port="/dev/ttyTHS1", baudrate=115200)
 IBUS = IBus(UART)
@@ -15,7 +16,11 @@ output = [1500] * 4
 missed_readings = 0
 
 
-class RX:
+class RX(Logger):
+
+    def __init__(self):
+        super().__init__()
+        
     '''
     Create a 16us deadzone around the center of the joystick to prevent pid errors
 

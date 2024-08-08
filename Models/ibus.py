@@ -5,14 +5,17 @@ Editor: jerinabr
 Credit: https://github.com/house4hack/circuitpython-ibus
 '''
 
+from models.logger import Logger
+
 PROTOCOL_SERVO = 0x40
 PROTOCOL_CHANNELS = 14
 PROTOCOL_OVERHEAD = 3
 PROTOCOL_LENGTH = 0x20
 
-class IBus:
+class IBus(Logger):
     def __init__(self, uart):
         self.uart = uart
+        super().__init__()
 
     def readUART(self):
         data = None

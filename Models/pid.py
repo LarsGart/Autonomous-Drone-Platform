@@ -5,13 +5,14 @@ This class acts as a generic PID loop
 It can be used for any PID purpose
 '''
 import numpy as np
+from models.logger import Logger
 
 
 def resetError():
     for member in PID.members:
         member.err, member.deltaErr, member.errSum, member.prevErr = 0, 0, 0, 0
 
-class PID:
+class PID(Logger):
     members = []
     '''
     Initializes pid coefficients and errors
@@ -27,6 +28,7 @@ class PID:
         self.err, self.deltaErr, self.errSum, self.prevErr = 0, 0, 0, 0
         self.kP, self.kD, self.kI, self.limit = kP, kI, kD, limit
         PID.members.append(self)
+        super().__init__()
 
 
     def __calcErr(self):

@@ -66,7 +66,7 @@ class Controller(Logger):
 
       while True:
          rx_data = RX.readRX()
-         angles = ZED.get_euler_in_degrees()
+         imu_roll, imu_pitch, imu_yaw = ZED.get_euler_in_degrees()
          
          throttle_norm = (rx_data[2] - 1000) / 1000
          throttle_scaled = 100 * THROTTLE_SCALE * throttle_norm
@@ -75,8 +75,8 @@ class Controller(Logger):
          pitch_set = 10 * ((rx_data[1] - 1500) / 500)
          yaw_set = 10 * ((rx_data[3] - 1500) / 500)
 
-         roll_comp = ROLL.calc(roll_set, -angles['roll'])
-         pitch_comp = PITCH.calc(pitch_set, -angles['pitch'])
+         roll_comp = ROLL.calc(roll_set, -imu_roll)
+         pitch_comp = PITCH.calc(pitch_set, -imu_pitch)
          yaw_comp = YAW.calc(yaw_set, ZED.get_y_angular_velocity())
 
          motor_speeds = [
