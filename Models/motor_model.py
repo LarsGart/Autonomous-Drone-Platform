@@ -6,6 +6,7 @@ This class handles outputting motor speeds to the motor controller MCU
 
 import serial
 import random
+import numpy as np
 
 
 class Motors:
@@ -13,6 +14,10 @@ class Motors:
    Instantiates the UART and connects to the MCU
    '''
    def __init__(self):
+      # logging.basicConfig(filename=f"/home/drone/Autonomous-Drone-Platform/Logs/{self.__class__.__name__}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.log"
+      #                      ,level=logging.DEBUG
+      #                      ,format='%(asctime)s:%(levelname)s:%(message)s')
+      # self.logger = logging.getLogger()
       # Define object variables
       self.test_passed = False
       self.test_range = 100
@@ -62,7 +67,6 @@ class Motors:
    '''
    def connect(self):
       print("Attempting to connect to MCU. Waiting for ENQ...")
-      # Instantiate UART
       self.uart = serial.Serial(port="/dev/ttyS0", baudrate=115200)
 
       # Wait for an ENQ
@@ -119,5 +123,6 @@ class Motors:
             return False
       return True
 
-   def scale_speeds(self, speeds): # Scale speeds from 0-100 to 1000-2000
-      return [speed * 10 + 1000 for speed in speeds]
+   def scale_speeds(self, speeds): # Scaling and constraining speeds from 0-100 to 1000-2000
+      scaled_speeds = [np.clip(int(speed * 10 + 1000), 1000, 2000) for speed in speeds]
+      return scaled_speeds

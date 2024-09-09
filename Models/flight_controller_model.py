@@ -47,11 +47,13 @@ class FlightController:
       self.test_mode = True if test_mode == 'test' else False
       self.logger.info(f'Test Mode: {self.test_mode}')
       self.throttle_scale = 0.5
-      # self.pid_limit = 0.02
-      self.pid_limit = 15
-      self.kP = [0.243*.5, 0.15, 0]
-      self.kI = [0.243*.5, 0.15, 0]
-      self.kD = [0.0151*.5, 0.010125, 0]
+      self.pid_limit = 10
+      # self.kP = [0.243*.5, 0.15, 0]
+      # self.kI = [0.243*.5, 0.15, 0]
+      # self.kD = [0.0151*.5, 0.010125, 0]
+      self.kP = [.15, .25, 1]
+      self.kI = [7.5, 7.5, 0]
+      self.kD = [.00825, .00825, 0]
       self.logger.info(f"\nP = {self.kP}\nI = {self.kI}\nD = {self.kD}")
       self.sample_rate = 50
       self.initialTime = time.time()
@@ -132,8 +134,9 @@ class FlightController:
          # Get RX data
          rx_data = self.rx.readRX()
 
-         # Get angles
+         # Get angles in degrees
          angs = self.zed.get_euler_in_degrees()
+         # print(angs)
 
          # Normalize throttle
          throttle_norm = (rx_data[2] - 1000) / 1000
@@ -149,9 +152,11 @@ class FlightController:
          # Create set points
          # desiredXVel = -10 * absDeltaXZ[0]
          # desiredZVel = -10 * absDeltaXZ[1]
-         rollSet = -10 * ((rx_data[0] - 1500) / 500)
-         pitchSet = -10 * ((rx_data[1] - 1500) / 500)
+         rollSet = 10 * ((rx_data[0] - 1500) / 500)
+         pitchSet = 10 * ((rx_data[1] - 1500) / 500)
          yawSet = 10 * ((rx_data[3] - 1500) / 500)
+
+         # self.logger.info(f'{rollSet}, {-angs["roll"]}, {pitchSet}, {-angs["pitch"]}')
 
          # Get current velocity
          # dp = p1 - p0
@@ -165,19 +170,25 @@ class FlightController:
          # yaw_comp = 0
          roll_comp = self.pid_roll.calc(rollSet, -angs['roll'])
          pitch_comp = self.pid_pitch.calc(pitchSet, -angs['pitch'])
-         yaw_comp = self.pid_yaw.calc(yawSet, angs['yaw'])
+         y_angular_velocity = self.zed.get_y_angular_velocity()
+         self.logger.info(f'{y_angular_velocity}')
 
-         self.logger.info(f"{time.time() - self.initialTime}, {rollSet}, {-angs['roll']}")
+         yaw_comp = self.pid_yaw.calc(yawSet, y_angular_velocity)
+         # self.logger.info(roll_comp)
+
+         # self.logger.info(f"roll_comp {self.pid_roll.deltaErr}")
+         # self.logger.info(f"pitch_comp {pitch_comp.deltaErr}
+         # self.logger.info(f"yaw {roll_comp.deltaErr}
          
 
          # print(angs)
 
          # Calculate motor speeds
          mSpeeds = [
-            np.clip(int(throttle_scaled + pitch_comp + roll_comp + yaw_comp), 0, 100),
-            np.clip(int(throttle_scaled - pitch_comp + roll_comp - yaw_comp), 0, 100),
-            np.clip(int(throttle_scaled - pitch_comp - roll_comp + yaw_comp), 0, 100),
-            np.clip(int(throttle_scaled + pitch_comp - roll_comp - yaw_comp), 0, 100)
+            throttle_scaled + pitch_comp + roll_comp + yaw_comp,
+            throttle_scaled - pitch_comp + roll_comp - yaw_comp,
+            throttle_scaled - pitch_comp - roll_comp + yaw_comp,
+            throttle_scaled + pitch_comp - roll_comp - yaw_comp
          ]
 
          # Output motor speeds
