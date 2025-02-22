@@ -1,17 +1,17 @@
 #!/bin/sh
-apt-get update && sudo apt-get upgrade && sudo apt-get clean
 echo "updating apt-get"
-apt-get install python3-pip
+apt-get update && sudo apt-get upgrade && sudo apt-get clean
 echo "installing python3-pip"
-systemctl stop nvgetty.service
+apt-get install python3-pip
 echo "stopping nvgetty.service"
-systemctl disable nvgetty.service
+systemctl stop nvgetty.service
 echo "disabling nvgetty.service"
-sed -i '10s/^/#/' /boot/extlinux/extlinux.conf
+systemctl disable nvgetty.service
 echo "enabling UART connection"
-git clone https://github.com/LarsGart/Autonomous-Drone-Platform.git
+sed -i '10s/^/#/' /boot/extlinux/extlinux.conf
 echo "cloning Autonomous-Drone-Platform repository"
-pip3 install pyserial
+git clone https://github.com/LarsGart/Autonomous-Drone-Platform.git
 echo "installing pyserial"
+pip3 install pyserial
 echo "restarting system"
 reboot now
