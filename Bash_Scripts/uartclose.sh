@@ -1,0 +1,1 @@
+systemctl stop serial-getty@ttyS0.service

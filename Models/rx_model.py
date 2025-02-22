@@ -61,6 +61,9 @@ class RX:
                                                                         , self.output[1]
                                                                         , self.output[3]))
         return self.output
+    
+    def readRX_normalized(self):
+        return (self.readRX() - 1000) / 1000
 
     def __del__(self):
         self.uart.close()
