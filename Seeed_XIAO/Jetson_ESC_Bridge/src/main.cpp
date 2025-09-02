@@ -1,128 +1,124 @@
 #include <Arduino.h>
-#include <SPISlave.h>
-
+#include <Sercom0_SPI_Slave.h>
 /*
   Debug
 */
-#define SERIAL_DEBUG // Uncomment to enable serial debugging
+#define ENABLE_SERIAL_DEBUG // Uncomment to enable serial debugging
 /*
-  Interrupt handler name replacements
+  Constants
 */
-#define SPI_SLAVE_HANDLER SERCOM0_Handler // Define the SPI slave handler function
+const uint16_t FIRMWARE_VERSION = 0x0100; // Firmware version 1.0
 /*
-  SPI interrupt variables
+  Variables
 */
-volatile bool start_of_transaction = false; // Flag to indicate start of SPI transaction
-volatile uint8_t rx_data = 0; // Variable to store received data
-volatile uint8_t cmd_code = 0; // Variable to store command code
-volatile uint8_t cmd_rd_wr = 0; // Variable to store read/write command
-volatile uint8_t data_size = 0; // Variable to store data size
-
-volatile uint8_t rx_buffer[2][8]; // Ping-pong buffer to store received data
-volatile uint8_t active_buffer = 0; // Index for active buffer
-volatile uint8_t rx_data_i = 0; // Index for received data
-volatile uint8_t rx_data_size = 0; // Size of received data
-
-volatile uint8_t rx_motor_data_buffer[2][9]; // Ping-pong buffer to store received motor data
-volatile uint8_t motor_data_active_buffer = 0; // Index for active motor data buffer
-volatile uint8_t motor_data_inactive_buffer = 1; // Index for inactive motor data buffer
-volatile uint8_t rx_motor_data_i = 0; // Index for received motor data
-/*
-  System variables
-*/
-volatile bool esc_armed = false; // Flag to indicate if ESC is armed
-volatile bool crc_enabled = false; // Flag to indicate if CRC is enabled
-volatile bool speeds_received = false; // Flag to indicate if speeds are received
-volatile bool data_received = false; // Flag to indicate if data is received
-
-uint8_t motor_data_buffer_size = 8; // Tail index for motor data buffer
 uint16_t motor_speeds[4]; // Array to store motor speeds
+bool motor_speeds_updated = false; // Flag to indicate if motor speeds have been updated
+bool esc_armed = false; // Flag to indicate if ESC is armed
+bool crc_enabled = false; // Flag to indicate if CRC is enabled
 /*
   Objects
 */
-SPISlave spi_slave; // SPI slave object
+SERCOM0_SPI_Slave spi_slave; // SPI slave object
+
+// Process received SPI data
+void process_spi_rx_data() {
+  switch (spi_slave.received_cmd) {
+    case 0: // FIRMWARE_VERSION
+      spi_slave.wr_data[0] = (FIRMWARE_VERSION >> 8) & 0xFF; // High byte
+      spi_slave.wr_data[1] = FIRMWARE_VERSION & 0xFF;        // Low byte
+      spi_slave.wr_data_ready = true;
+      break;
+
+    case 1: // ESC_ARM_DISARM
+      esc_armed = (spi_slave.rd_data[0] == 0x01); // 1 to arm, 0 to disarm
+      break;
+
+    case 2: // CRC_ENABLE_DISABLE
+      crc_enabled = (spi_slave.rd_data[0] == 0x01); // 1 to enable, 0 to disable
+      break;
+
+    case 3: // MOTOR_SPEEDS
+      for (uint8_t i = 0; i < 4; i++) {
+        motor_speeds[i] = (spi_slave.rd_data[i*2] << 8) | spi_slave.rd_data[i*2 + 1];
+      }
+      motor_speeds_updated = true;
+      break;
+
+    case 4: // MOTOR_STOP
+      for (uint8_t i = 0; i < 4; i++) {
+        motor_speeds[i] = 1000; // Set all motor speeds to 1000 (stop)
+      }
+      motor_speeds_updated = true;
+      break;
+    
+    default:
+      break;
+  }
+}
 
 void setup() {
-  // Initialize SPI slave
-  spi_slave.init();
-
-  // Enable Serial if SERIAL_DEBUG is defined
-  #ifdef SERIAL_DEBUG
+  // Enable Serial if ENABLE_SERIAL_DEBUG is defined
+  #ifdef ENABLE_SERIAL_DEBUG
     Serial.begin(115200); // Initialize serial communication at 115200 baud rate
-    while (!Serial); // Wait for serial port to connect
+    unsigned long serial_timeout = millis() + 5000; // 5 second timeout
+    while (!Serial && (millis() < serial_timeout)); // Wait for serial port to connect or timeout
     Serial.println("Setup complete");
+  #endif
+
+  // Initialize SPI slave
+  spi_slave.init(); // Pass true to enable debug output
+  #ifdef ENABLE_SERIAL_DEBUG
+    Serial.println("SPI initialized successfully");
   #endif
 }
 
 void loop() {
-  #ifdef SERIAL_DEBUG
-    if (speeds_received) { // Check if speeds are received
+  // Check if new SPI data is ready to be processed
+  if (spi_slave.rd_data_ready) {
+    process_spi_rx_data();
+    spi_slave.rd_data_ready = false;
+  }
+
+  #ifdef ENABLE_SERIAL_DEBUG
+    if (motor_speeds_updated) { // Check if speeds are received
       Serial.print("Motor speeds: ");
-      for (int i = 0; i < 8; i++) {
-        Serial.print(rx_motor_data_buffer[motor_data_inactive_buffer][i], HEX); // Print motor speeds in hexadecimal format
+      for (int i = 0; i < 4; i++) {
+        Serial.print(motor_speeds[i]);
         Serial.print(" ");
       }
       Serial.println();
-      speeds_received = false; // Reset the flag after processing
+      motor_speeds_updated = false; // Reset the flag after processing
     }
   #endif
 }
 
-void SPI_SLAVE_HANDLER() {
-  // if (SERCOM0->SPI.INTFLAG.bit.TXC) {
-  //   SERCOM0->SPI.INTFLAG.bit.TXC = 1; // Clear Transmit Complete interrupt
-  //   rx_done = true; // Set the reception flag to true when transmission is complete
-  //   num_bytes = i; // Store the number of bytes received
-  //   i = 0; // Reset i for the next reception
-  // }
-
-  // if (SERCOM0->SPI.INTFLAG.bit.DRE) {
-  //   // Data Register Empty interrupt: this is where the data is sent to the master
-  //   // Write data to be sent to the master
-  //   SERCOM0->SPI.DATA.reg = tx_buffer[j++]; // Increment j for next data to be sent
-  //   if (j == 4) { // Reset j to 0 after sending 4 bytes
-  //     j = 0;
-  //   }
-  // }
-
-  // Interrupt if RX data buffer has a new word in it
+void SERCOM0_Handler() {
   if (SERCOM0->SPI.INTFLAG.bit.RXC) {
-    rx_data = SERCOM0->SPI.DATA.reg; // Read data from the RX data buffer to clear the interrupt
-
-    // Check if the start of a transaction is detected
-    if (start_of_transaction && rx_data < NUM_CMDS) {
-      cmd_code = rx_data; // Store the command code
-      cmd_rd_wr = spi_slave.spi_cmd_info[cmd_code][0]; // Get the read/write command
-      data_size = spi_slave.spi_cmd_info[cmd_code][1]; // Get the data size for the command
-
-      if (cmd_code == CMD_MOTOR_SPEEDS) { // Check if the command is for motor speeds
-        start_of_transaction = false; // Reset the start of transaction flag
-        rx_motor_data_i = 0; // Reset index for received motor data
-      } else if (cmd_rd_wr == CMD_WR) { // Check if it's a write command
-        start_of_transaction = false; // Reset the start of transaction flag
-        rx_data_i = 1; // Reset index for received data
-        rx_data_size = data_size; // Set the data size for the command
-        rx_buffer[active_buffer][0] = cmd_code; // Store the command in the active buffer
-      } else {
-        // Handle read command if needed
-      }
-    } else {
-      if (cmd_code == CMD_MOTOR_SPEEDS) {
-        rx_motor_data_buffer[motor_data_active_buffer][rx_motor_data_i++] = rx_data; // Store the received motor data in the active buffer
-        if (rx_motor_data_i == MOTOR_SPEEDS_BYTE_LENGTH) { // Check if all motor bytes are received
-          speeds_received = true; // Set flag to indicate speeds are received
-          start_of_transaction = true; // Reset start of transaction flag
-          motor_data_active_buffer = (motor_data_active_buffer == 0) ? 1 : 0; // Switch to the other buffer
-          motor_data_inactive_buffer = (motor_data_active_buffer == 0) ? 1 : 0; // Switch to the other buffer
-        }
-      } else if (cmd_rd_wr == CMD_WR) { // Check if it's a write command
-        rx_buffer[active_buffer][rx_data_i++] = rx_data; // Store the received data in the active buffer
-        if (rx_data_i == rx_data_size) { // Check if the buffer is full
-          data_received = true; // Set flag to indicate data is received
-          start_of_transaction = true; // Reset start of transaction flag
-          active_buffer = (active_buffer == 0) ? 1 : 0; // Switch to the other buffer
-        }
-      }
-    }
+    uint8_t data = SERCOM0->SPI.DATA.reg; // Read data from the RX data buffer to clear the interrupt
+    spi_slave.handle_receive(data);
   }
 }
+
+// void SERCOM0_Handler() {
+//   // if (SERCOM0->SPI.INTFLAG.bit.TXC) {
+//   //   SERCOM0->SPI.INTFLAG.bit.TXC = 1; // Clear Transmit Complete interrupt
+//   //   rx_done = true; // Set the reception flag to true when transmission is complete
+//   //   num_bytes = i; // Store the number of bytes received
+//   //   i = 0; // Reset i for the next reception
+//   // }
+
+//   // if (SERCOM0->SPI.INTFLAG.bit.DRE) {
+//   //   // Data Register Empty interrupt: this is where the data is sent to the master
+//   //   // Write data to be sent to the master
+//   //   SERCOM0->SPI.DATA.reg = tx_buffer[j++]; // Increment j for next data to be sent
+//   //   if (j == 4) { // Reset j to 0 after sending 4 bytes
+//   //     j = 0;
+//   //   }
+//   // }
+
+//   // Interrupt if RX data buffer has a new word in it
+//   if (SERCOM0->SPI.INTFLAG.bit.RXC) {
+//     rx_data = SERCOM0->SPI.DATA.reg; // Read data from the RX data buffer to clear the interrupt
+//     rx_buffer[active_buffer][rx_data_i++] = rx_data; // Store received data in the active buffer
+//   }
+// }

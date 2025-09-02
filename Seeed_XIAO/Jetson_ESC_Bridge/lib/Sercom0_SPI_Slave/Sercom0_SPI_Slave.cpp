@@ -1,17 +1,13 @@
-#include "SPISlave.h"
+#include "Sercom0_SPI_Slave.h"
 
-SPISlave::SPISlave() {
+SERCOM0_SPI_Slave::SERCOM0_SPI_Slave() {
   // Constructor implementation (if needed)
 }
 
 /*
-  Initialize pins as SERCOM0 pins
+  Configure pins as SERCOM0 pins
 */
-void SPISlave::configure_spi_pins() {
-  // Set PA10 as input w/ pullup for Slave Select (SS)
-  // PORT->Group[PORTA].PINCFG[PIN_PA10].reg = PORT_PINCFG_INEN | PORT_PINCFG_PULLEN; // Enable input and pull-up for SS (PAD2)
-  // PORT->Group[PORTA].OUTSET.reg = (1 << PIN_PA10); // Set PA10 (SS) high to enable pull-up resistor
-
+void SERCOM0_SPI_Slave::configure_pins() {
   // Enable pin mux
   PORT->Group[PORTA].PINCFG[PIN_PA04].bit.PMUXEN = 1;
   PORT->Group[PORTA].PINCFG[PIN_PA05].bit.PMUXEN = 1;
@@ -26,23 +22,9 @@ void SPISlave::configure_spi_pins() {
 }
 
 /*
-  Intialize SERCOM0 interrupt vector
+  Configure SERCOM0 as SPI slave
 */
-void SPISlave::initialize_sercom_irq() {
-  // Disable SERCOM0 interrupt
-  NVIC_DisableIRQ(SERCOM0_IRQn);
-
-  // Clear pending interrupt
-  NVIC_ClearPendingIRQ(SERCOM0_IRQn);
-
-  // Set interrupt priority
-  NVIC_SetPriority(SERCOM0_IRQn, 0);
-}
-
-/*
-  Initialize SERCOM0
-*/
-void SPISlave::initialize_sercom() {
+void SERCOM0_SPI_Slave::configure_sercom() {
   /*
     Reset SERCOM0 registers
   */
@@ -87,9 +69,10 @@ void SPISlave::initialize_sercom() {
   while (SERCOM0->SPI.SYNCBUSY.bit.CTRLB);
 
   // Set up SERCOM0 interrupts
-  SERCOM0->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_RXC | // Enable receive complete interrupt
-                              SERCOM_SPI_INTENSET_TXC | // Enable transmit complete interrupt
-                              SERCOM_SPI_INTENSET_DRE;  // Enable data register empty interrupt
+  // SERCOM0->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_RXC | // Enable receive complete interrupt
+  //                             SERCOM_SPI_INTENSET_TXC | // Enable transmit complete interrupt
+  //                             SERCOM_SPI_INTENSET_DRE;  // Enable data register empty interrupt
+  SERCOM0->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_RXC; // Enable only receive complete interrupt
 
   // Enable SERCOM0
   SERCOM0->SPI.CTRLA.bit.ENABLE = 1;
@@ -98,15 +81,24 @@ void SPISlave::initialize_sercom() {
   while (SERCOM0->SPI.SYNCBUSY.bit.ENABLE);
 }
 
-void SPISlave::init() {
+/*
+  Initialize SPI slave
+*/
+void SERCOM0_SPI_Slave::init() {
   // Configure SPI pins
-  this->configure_spi_pins();
+  this->configure_pins();
 
-  // Initialize SERCOM interrupt vector
-  this->initialize_sercom_irq();
+  // Disable SERCOM0 interrupt
+  NVIC_DisableIRQ(SERCOM0_IRQn);
+
+  // Clear pending interrupt
+  NVIC_ClearPendingIRQ(SERCOM0_IRQn);
+
+  // Set interrupt priority
+  NVIC_SetPriority(SERCOM0_IRQn, 0);
 
   // Initialize SERCOM
-  this->initialize_sercom();
+  this->configure_sercom();
 
   // Enable SERCOM0 interrupt
   NVIC_EnableIRQ(SERCOM0_IRQn);
