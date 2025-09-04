@@ -7,8 +7,8 @@
   Date: 09/10/2025
 */
 
-#ifndef SERCOM0_SPI_SLAVE_H
-#define SERCOM0_SPI_SLAVE_H
+#ifndef Jetson_SPI_H
+#define Jetson_SPI_H
 
 #include <Arduino.h>
 
@@ -36,20 +36,20 @@ const uint8_t spi_cmd_info[NUM_CMDS][2] = {
   {CMD_WR, 1}   // MOTOR_STOP
 };
 
-// Struct to hold SERCOM0 SPI slave variables
+// Struct to hold Jetson SPI slave variables
 typedef struct {
   volatile bool rd_data_ready;
   volatile uint8_t received_cmd;
   volatile uint8_t rd_data[16];
   bool wr_data_ready;
   uint8_t wr_data[8];
-} SERCOM0_SPI_Slave_t;
+} Jetson_SPI_t;
 
-// Global instance of SERCOM0_SPI_Slave
-extern SERCOM0_SPI_Slave_t spi_slave;
+// Global instance of Jetson_SPI
+extern Jetson_SPI_t jetson_spi;
 
-// Initialize the SERCOM0 SPI slave
-void sercom0_spi_slave_init(void);
+// Initialize the Jetson SPI
+void jetson_spi_init(void);
 
 #ifdef __cplusplus
 }
