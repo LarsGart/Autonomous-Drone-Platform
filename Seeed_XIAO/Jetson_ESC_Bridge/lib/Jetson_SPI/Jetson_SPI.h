@@ -1,12 +1,6 @@
 /*
-  Sercom0_SPI_Slave.h - Header file for SERCOM0 SPI slave interface
-  This file defines the structure and functions for initializing and managing
-  the SERCOM0 SPI slave communication.
-  
-  Revision: 1.0
-  Date: 09/10/2025
+  Jetson_SPI.h - Header file for Jetson SPI communication
 */
-
 #ifndef Jetson_SPI_H
 #define Jetson_SPI_H
 
@@ -16,28 +10,26 @@
 extern "C" {
 #endif
 
-#define NUM_CMDS  5     // Number of commands
-#define CMD_WR    0x00  // Command write code
-#define CMD_RD    0x01  // Command read code
+#define NUM_CMDS 4 // Number of commands
+
+// Command definitions
+#define FIRMWARE_VERSION_CMD  0x00
+#define ESC_ARM_DISARM_CMD    0x01
+#define MOTOR_SPEEDS_CMD      0x02
+#define MOTOR_STOP_CMD        0x03
 
 static const uint16_t SPI_START_BYTES = 0xBC9E; // Start bytes for SPI communication
-
-/*
-  SPI table format:
-  {rd_wr_command, data_size}
-  - rd_wr_command: 0x00 for write, 0x01 for read
-  - data_size: number of bytes this transaction will transfer
-*/
-const uint8_t spi_cmd_info[NUM_CMDS][2] = {
-  {CMD_RD, 2},  // FIRMWARE_VERSION
-  {CMD_WR, 1},  // ESC_ARM_DISARM
-  {CMD_WR, 1},  // CRC_ENABLE_DISABLE
-  {CMD_WR, 8},  // MOTOR_SPEEDS
-  {CMD_WR, 1}   // MOTOR_STOP
+static const uint8_t SPI_DATA_LENGTH[NUM_CMDS] = {
+  2, // FIRMWARE_VERSION
+  1, // ESC_ARM_DISARM
+  8, // MOTOR_SPEEDS
+  1  // MOTOR_STOP
 };
 
-// Struct to hold Jetson SPI slave variables
+// Struct to hold Jetson SPI data and state
 typedef struct {
+  volatile bool crc_check_done;
+  volatile uint16_t calculated_crc;
   volatile bool rd_data_ready;
   volatile uint8_t received_cmd;
   volatile uint8_t rd_data[16];
@@ -48,8 +40,7 @@ typedef struct {
 // Global instance of Jetson_SPI
 extern Jetson_SPI_t jetson_spi;
 
-// Initialize the Jetson SPI
-void jetson_spi_init(void);
+uint8_t jetson_spi_init(void);
 
 #ifdef __cplusplus
 }
