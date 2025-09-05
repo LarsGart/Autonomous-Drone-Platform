@@ -1,16 +1,32 @@
 #include "Jetson_SPI.h"
 
+#define RING_BUFFER_SIZE 64
+
 // Initialize the Jetson SPI instance
 Jetson_SPI_t jetson_spi = {
-  .rd_data_ready = false,
   .received_cmd = 0,
   .rd_data = {0},
-  .wr_data_ready = false,
-  .wr_data = {0}
+  .rd_data_ready = false
 };
 
-// Error flag
-static uint8_t error_flag = 0;
+// Constants
+static const uint16_t SPI_START_BYTES = 0xBC9E; // Start bytes for SPI communication
+static const uint8_t SPI_DATA_LENGTH[NUM_CMDS] = {
+  1, // ESC_ARM_DISARM
+  8, // MOTOR_SPEEDS
+  1, // MOTOR_STOP
+  1  // READ_REGISTER
+};
+
+// Variables
+static uint8_t error_flag = 0; // 0 = no error
+
+static uint8_t rd_buffer[RING_BUFFER_SIZE]; // Buffer to hold received data
+static uint8_t rd_buffer_rd_ptr = 0; // Read pointer for rd_buffer
+static uint8_t rd_buffer_wr_ptr = 0; // Write pointer for rd_buffer
+
+static uint8_t wr_buffer[RING_BUFFER_SIZE]; // Buffer to hold data to write
+static uint8_t wr_buffer_rd_ptr = 0; // Read pointer for wr_buffer
 
 // ----------------------------------------------------------------
 // CRC-16-CCITT TABLE
@@ -66,6 +82,31 @@ static uint16_t compute_crc16() {
     crc = (crc << 8) ^ crc16_table[((crc >> 8) ^ jetson_spi.rd_data[i]) & 0xFF];
   }
   return crc;
+}
+
+/*
+  @name isDataAvailable
+  @brief Checks if there is data available in the SPI receive buffer
+  @return true if data is available, false otherwise
+*/
+static bool isDataAvailable(void) {
+  return rd_buffer_rd_ptr != rd_buffer_wr_ptr;
+}
+
+/*
+  @name readByte
+  @brief Reads a byte from the SPI receive buffer
+  @return The next byte from the buffer, or 0 if the buffer is empty
+*/
+static uint8_t readByte(void) {
+  if (rd_buffer_rd_ptr == rd_buffer_wr_ptr) {
+    return 0; // Buffer is empty
+  }
+  uint8_t data = rd_buffer[rd_buffer_rd_ptr++];
+  if (rd_buffer_rd_ptr >= RING_BUFFER_SIZE) {
+    rd_buffer_rd_ptr = 0; // Wrap around if needed
+  }
+  return data;
 }
 
 /*
@@ -133,13 +174,9 @@ static inline void process_received_byte(uint8_t data) {
       // Compute CRC over command and data
       uint16_t computed_crc = compute_crc16();
       if (computed_crc == received_crc) {
-        jetson_spi.rd_data_ready = true; // Valid packet received
+        jetson_spi.rd_data_ready = true;
       }
-      jetson_spi.calculated_crc = computed_crc;
-      jetson_spi.crc_check_done = true;
-
-      // Reset state machine for next packet
-      state = WAIT_FOR_START_1;
+      state = WAIT_FOR_START_1; // Reset state machine for next packet
       break;
 
     default:
@@ -205,7 +242,7 @@ static void configure_sercom(void) {
                             SERCOM_SPI_CTRLA_DOPO(0) |        // Set MISO to PAD0, SCK to PAD1, SS to PAD2
                             SERCOM_SPI_CTRLA_DIPO(3);         // Set MOSI to PAD3
 
-  SERCOM0->SPI.CTRLB.bit.RXEN = 1; // Enable receiver
+  SERCOM0->SPI.CTRLB.reg =  SERCOM_SPI_CTRLB_RXEN;            // Enable receiver
 
   timeout = 100000;
   while (SERCOM0->SPI.SYNCBUSY.bit.CTRLB && --timeout);
@@ -216,10 +253,8 @@ static void configure_sercom(void) {
   /*
     Configure SPI interrupts
   */
-  // SERCOM0->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_RXC | // Enable receive complete interrupt
-  //                             SERCOM_SPI_INTENSET_TXC | // Enable transmit complete interrupt
-  //                             SERCOM_SPI_INTENSET_DRE;  // Enable data register empty interrupt
-  SERCOM0->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_RXC; // Receive complete
+  SERCOM0->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_RXC | // Receive Complete
+                              SERCOM_SPI_INTENSET_DRE;  // Data Register Empty
   /*
     Enable SERCOM0 SPI
   */
@@ -255,28 +290,51 @@ uint8_t jetson_spi_init(void) {
   return error_flag; // Return 0 if successful, non-zero for errors
 }
 
+/*
+  @name process_spi_rx_data
+  @brief Processes all available data in the SPI receive buffer. This function should be called
+  periodically in the main loop to handle incoming SPI data.
+*/
+void process_spi_rx_data(void) {
+  while (isDataAvailable()) {
+    uint8_t data = readByte();
+    process_received_byte(data);
+  }
+}
+
+/*
+  @name write_spi_data
+  @brief Queues data to be sent to the Jetson. This function copies the provided data into the
+  write buffer and updates the write pointer.
+  @param data Pointer to the data to send
+  @param length Number of bytes to send
+*/
+void write_spi_data(uint8_t* data, uint8_t length) {
+  uint8_t wr_buffer_wr_ptr = wr_buffer_rd_ptr; // Start writing where the read pointer is
+  for (uint8_t i = 0; i < length; i++) {
+    wr_buffer[wr_buffer_wr_ptr++] = data[i];
+    if (wr_buffer_wr_ptr >= RING_BUFFER_SIZE) {
+      wr_buffer_wr_ptr = 0;
+    }
+  }
+}
+
 // ----------------------------------------------------------------
 // INTERUPT HANDLER
 // ----------------------------------------------------------------
 void SERCOM0_Handler(void) {
-//   // if (SERCOM0->SPI.INTFLAG.bit.TXC) {
-//   //   SERCOM0->SPI.INTFLAG.bit.TXC = 1; // Clear Transmit Complete interrupt
-//   //   rx_done = true; // Set the reception flag to true when transmission is complete
-//   //   num_bytes = i; // Store the number of bytes received
-//   //   i = 0; // Reset i for the next reception
-//   // }
-
-//   // if (SERCOM0->SPI.INTFLAG.bit.DRE) {
-//   //   // Data Register Empty interrupt: this is where the data is sent to the master
-//   //   // Write data to be sent to the master
-//   //   SERCOM0->SPI.DATA.reg = tx_buffer[j++]; // Increment j for next data to be sent
-//   //   if (j == 4) { // Reset j to 0 after sending 4 bytes
-//   //     j = 0;
-//   //   }
-//   // }
-
+  // Store received byte in ring buffer on RXC interrupt
   if (SERCOM0->SPI.INTFLAG.bit.RXC) {
-    uint8_t data = SERCOM0->SPI.DATA.reg; // Read data from the RX data buffer to clear the interrupt
-    process_received_byte(data);
+    rd_buffer[rd_buffer_wr_ptr++] = SERCOM0->SPI.DATA.reg;
+    if (rd_buffer_wr_ptr >= RING_BUFFER_SIZE) {
+      rd_buffer_wr_ptr = 0;
+    }
+  }
+  // Send next byte from wr_data buffer on DRE interrupt
+  if (SERCOM0->SPI.INTFLAG.bit.DRE) {
+    SERCOM0->SPI.DATA.reg = wr_buffer[wr_buffer_rd_ptr++];
+    if (wr_buffer_rd_ptr >= RING_BUFFER_SIZE) {
+      wr_buffer_rd_ptr = 0;
+    }
   }
 }
