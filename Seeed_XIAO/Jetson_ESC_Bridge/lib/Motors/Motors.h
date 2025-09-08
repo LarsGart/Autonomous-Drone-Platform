@@ -20,7 +20,7 @@ extern Motors_t motors;
 
 // Functions
 uint8_t motors_init(void);
-void set_motor_pulse_width(uint8_t motor, uint16_t pulse_width);
+void update_motor_pulse_widths(const uint16_t* pulse_widths);
 
 #ifdef __cplusplus
 }

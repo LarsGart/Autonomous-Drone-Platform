@@ -140,30 +140,15 @@ uint8_t motors_init(void) {
 }
 
 /*
-  @name set_motor_pulse_width
-  @brief Sets the pulse width for a specific motor (in microseconds)
-  @param motor Motor index (0-3)
-  @param pulse_width Pulse width in microseconds (1000-2000)
+  @name update_motor_pulse_widths
+  @brief Updates the pulse widths for all motors
+  @param pulse_widths Array of pulse widths for motors 0-3 (in microseconds)
 */
-void set_motor_pulse_width(uint8_t motor, uint16_t pulse_width) {
-  if (motor > 3 || pulse_width < 1000 || pulse_width > 2000) {
-    return; // Invalid motor index or pulse width
-  }
-  uint32_t compare_val = CONVERT_MICROS_TO_DUTY(pulse_width);
-  switch (motor) {
-    case 0:
-      TCC0->CCB[0].reg = compare_val;
-      break;
-    case 1:
-      TCC0->CCB[1].reg = compare_val;
-      break;
-    case 2:
-      TCC0->CCB[2].reg = compare_val;
-      break;
-    case 3:
-      TCC0->CCB[3].reg = compare_val;
-      break;
-  }
+void update_motor_pulse_widths(const uint16_t* pulse_widths) {
+  TCC0->CCB[0].reg = CONVERT_MICROS_TO_DUTY(pulse_widths[0]);
+  TCC0->CCB[1].reg = CONVERT_MICROS_TO_DUTY(pulse_widths[1]);
+  TCC0->CCB[2].reg = CONVERT_MICROS_TO_DUTY(pulse_widths[2]);
+  TCC0->CCB[3].reg = CONVERT_MICROS_TO_DUTY(pulse_widths[3]);
 }
 // ----------------------------------------------------------------------
 // INTERRUPT HANDLER

@@ -1,6 +1,8 @@
 #include "Jetson_SPI.h"
 
-#define RING_BUFFER_SIZE 64
+#define RING_BUFFER_SIZE 32
+#define SPI_RX_DMA 0
+#define SPI_TX_DMA 1
 
 // Initialize the Jetson SPI instance
 Jetson_SPI_t jetson_spi = {
@@ -8,6 +10,10 @@ Jetson_SPI_t jetson_spi = {
   .rd_data = {0},
   .rd_data_ready = false
 };
+
+// 2 DMA descriptors: one for RX, one for TX
+DmacDescriptor dma_desc[2] __attribute__((aligned(16)));
+DmacDescriptor dma_wrb[2] __attribute__((aligned(16)));
 
 // Constants
 static const uint16_t SPI_START_BYTES = 0xBC9E; // Start bytes for SPI communication
@@ -23,10 +29,7 @@ static uint8_t error_flag = 0; // 0 = no error
 
 static uint8_t rd_buffer[RING_BUFFER_SIZE]; // Buffer to hold received data
 static uint8_t rd_buffer_rd_ptr = 0; // Read pointer for rd_buffer
-static uint8_t rd_buffer_wr_ptr = 0; // Write pointer for rd_buffer
-
 static uint8_t wr_buffer[RING_BUFFER_SIZE]; // Buffer to hold data to write
-static uint8_t wr_buffer_rd_ptr = 0; // Read pointer for wr_buffer
 
 // ----------------------------------------------------------------
 // CRC-16-CCITT TABLE
@@ -90,7 +93,9 @@ static uint16_t compute_crc16() {
   @return true if data is available, false otherwise
 */
 static bool isDataAvailable(void) {
-  return rd_buffer_rd_ptr != rd_buffer_wr_ptr;
+  // return rd_buffer_rd_ptr != rd_buffer_wr_ptr;
+  uint16_t wr_ptr = RING_BUFFER_SIZE - dma_wrb[SPI_RX_DMA].BTCNT.reg;
+  return rd_buffer_rd_ptr != wr_ptr;
 }
 
 /*
@@ -99,9 +104,6 @@ static bool isDataAvailable(void) {
   @return The next byte from the buffer, or 0 if the buffer is empty
 */
 static uint8_t readByte(void) {
-  if (rd_buffer_rd_ptr == rd_buffer_wr_ptr) {
-    return 0; // Buffer is empty
-  }
   uint8_t data = rd_buffer[rd_buffer_rd_ptr++];
   if (rd_buffer_rd_ptr >= RING_BUFFER_SIZE) {
     rd_buffer_rd_ptr = 0; // Wrap around if needed
@@ -251,11 +253,6 @@ static void configure_sercom(void) {
     return;
   }
   /*
-    Configure SPI interrupts
-  */
-  SERCOM0->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_RXC | // Receive Complete
-                              SERCOM_SPI_INTENSET_DRE;  // Data Register Empty
-  /*
     Enable SERCOM0 SPI
   */
   SERCOM0->SPI.CTRLA.bit.ENABLE = 1;
@@ -268,24 +265,90 @@ static void configure_sercom(void) {
   }
 }
 
+/*
+  @name configure_dmac
+  @brief Configures the DMAC to 
+*/
+static void configure_dmac(void) {
+  /*
+    Enable clock for DMAC
+  */
+  PM->AHBMASK.reg |= PM_AHBMASK_DMAC;   // Enable AHB clock for DMAC
+  PM->APBBMASK.reg |= PM_APBBMASK_DMAC; // Enable APBB clock for DMAC
+  /*
+    Reset DMAC
+  */
+  DMAC->CTRL.bit.DMAENABLE = 0;
+  DMAC->CTRL.bit.CRCENABLE = 0;
+  DMAC->CTRL.bit.SWRST = 1;
+  /*
+    Configure DMAC descriptors and control
+  */
+  DMAC->BASEADDR.reg = (uint32_t)&dma_desc; // Set base address for descriptors
+  DMAC->WRBADDR.reg = (uint32_t)&dma_wrb; // Set base address for write-back descriptors
+  DMAC->CTRL.reg =  DMAC_CTRL_DMAENABLE | // Enable DMAC
+                    DMAC_CTRL_LVLEN(0xF); // Enable all priority levels
+  /*
+    Configure DMA channel 0 for SPI RX
+      1. Reset channel
+      2. Set up RX descriptor
+      3. Configure channel control
+      4. Enable channel
+  */
+  DMAC->CHID.reg = DMAC_CHID_ID(0); // Select channel 0
+  DMAC->CHCTRLA.bit.ENABLE = 0;
+  DMAC->CHCTRLA.bit.SWRST = 1;
+  
+  dma_desc[SPI_RX_DMA].BTCTRL.reg = DMAC_BTCTRL_VALID |           // Descriptor is valid
+                                    DMAC_BTCTRL_BLOCKACT_NOACT |  // No action on block complete
+                                    DMAC_BTCTRL_BEATSIZE_BYTE |   // Transfer size: byte
+                                    DMAC_BTCTRL_DSTINC;           // Increment destination address
+  dma_desc[SPI_RX_DMA].BTCNT.reg = RING_BUFFER_SIZE;              // Number of bytes to transfer
+  dma_desc[SPI_RX_DMA].SRCADDR.reg = (uint32_t)&SERCOM0->SPI.DATA.reg;
+  dma_desc[SPI_RX_DMA].DSTADDR.reg = (uint32_t)(rd_buffer + RING_BUFFER_SIZE);
+  dma_desc[SPI_RX_DMA].DESCADDR.reg = (uint32_t)&dma_desc[SPI_RX_DMA]; // Circular buffer
+
+  DMAC->CHCTRLB.reg = DMAC_CHCTRLB_LVL(1) |                       // Priority level 1
+                      DMAC_CHCTRLB_TRIGSRC(SERCOM0_DMAC_ID_RX) |  // Trigger source: SERCOM0 RX
+                      DMAC_CHCTRLB_TRIGACT_BEAT;                  // Trigger action: one beat transfer
+  DMAC->CHCTRLA.bit.ENABLE = 1;
+  /*
+    Configure DMA channel 1 for SPI TX
+      1. Reset channel
+      2. Set up TX descriptor
+      3. Configure channel control
+      4. Enable channel
+  */
+  DMAC->CHID.reg = DMAC_CHID_ID(1); // Select channel 1
+  DMAC->CHCTRLA.bit.ENABLE = 0;
+  DMAC->CHCTRLA.bit.SWRST = 1;
+
+  dma_desc[SPI_TX_DMA].BTCTRL.reg = DMAC_BTCTRL_VALID |           // Descriptor is valid
+                                    DMAC_BTCTRL_BLOCKACT_NOACT |  // No action on block complete
+                                    DMAC_BTCTRL_BEATSIZE_BYTE |   // Transfer size: byte
+                                    DMAC_BTCTRL_SRCINC;           // Increment source address
+  dma_desc[SPI_TX_DMA].BTCNT.reg = RING_BUFFER_SIZE;              // Number of bytes to transfer
+  dma_desc[SPI_TX_DMA].SRCADDR.reg = (uint32_t)(wr_buffer + RING_BUFFER_SIZE);
+  dma_desc[SPI_TX_DMA].DSTADDR.reg = (uint32_t)&SERCOM0->SPI.DATA.reg;
+  dma_desc[SPI_TX_DMA].DESCADDR.reg = (uint32_t)&dma_desc[SPI_TX_DMA]; // Circular buffer
+
+  DMAC->CHCTRLB.reg = DMAC_CHCTRLB_LVL(0) |                       // Priority level 0
+                      DMAC_CHCTRLB_TRIGSRC(SERCOM0_DMAC_ID_TX) |  // Trigger source: SERCOM0 TX
+                      DMAC_CHCTRLB_TRIGACT_BEAT;                  // Trigger action: one beat transfer
+  DMAC->CHCTRLA.bit.ENABLE = 1;
+}
+
 // ----------------------------------------------------------------
 // PUBLIC FUNCTIONS
 // ----------------------------------------------------------------
 /*
   @name jetson_spi_init
-  @brief Initializes the Jetson SPI. This function configures the pins, sets up the SERCOM0 registers,
-  and enables the SPI interrupt.
-  @return 0 if successful, non-zero error code otherwise
+  @brief Initializes the Jetson SPI and DMAC
 */
 uint8_t jetson_spi_init(void) {
-  NVIC_DisableIRQ(SERCOM0_IRQn);
-  NVIC_ClearPendingIRQ(SERCOM0_IRQn);
-  NVIC_SetPriority(SERCOM0_IRQn, 0);
-
   configure_pins();
   configure_sercom();
-
-  NVIC_EnableIRQ(SERCOM0_IRQn);
+  configure_dmac();
 
   return error_flag; // Return 0 if successful, non-zero for errors
 }
@@ -309,32 +372,12 @@ void process_spi_rx_data(void) {
   @param data Pointer to the data to send
   @param length Number of bytes to send
 */
-void write_spi_data(uint8_t* data, uint8_t length) {
-  uint8_t wr_buffer_wr_ptr = wr_buffer_rd_ptr; // Start writing where the read pointer is
+void write_spi_data(const uint8_t* data, uint8_t length) {
+  uint16_t wr_buffer_wr_ptr = RING_BUFFER_SIZE - dma_wrb[SPI_TX_DMA].BTCNT.reg + 1;
   for (uint8_t i = 0; i < length; i++) {
     wr_buffer[wr_buffer_wr_ptr++] = data[i];
     if (wr_buffer_wr_ptr >= RING_BUFFER_SIZE) {
       wr_buffer_wr_ptr = 0;
-    }
-  }
-}
-
-// ----------------------------------------------------------------
-// INTERUPT HANDLER
-// ----------------------------------------------------------------
-void SERCOM0_Handler(void) {
-  // Store received byte in ring buffer on RXC interrupt
-  if (SERCOM0->SPI.INTFLAG.bit.RXC) {
-    rd_buffer[rd_buffer_wr_ptr++] = SERCOM0->SPI.DATA.reg;
-    if (rd_buffer_wr_ptr >= RING_BUFFER_SIZE) {
-      rd_buffer_wr_ptr = 0;
-    }
-  }
-  // Send next byte from wr_data buffer on DRE interrupt
-  if (SERCOM0->SPI.INTFLAG.bit.DRE) {
-    SERCOM0->SPI.DATA.reg = wr_buffer[wr_buffer_rd_ptr++];
-    if (wr_buffer_rd_ptr >= RING_BUFFER_SIZE) {
-      wr_buffer_rd_ptr = 0;
     }
   }
 }

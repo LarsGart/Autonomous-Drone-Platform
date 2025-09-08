@@ -18,14 +18,14 @@
 /*
   Constants
 */
-const uint16_t FIRMWARE_VERSION = 0x0100; // Firmware version 1.0
+const uint8_t FIRMWARE_VERSION[2] = {0, 9}; // Firmware version 0.9
 /*
   Variables
 */
-bool serial_initialized = false; // Flag to indicate if serial is initialized
+bool serial_initialized = false;
 
-uint16_t motor_speeds[4]; // Array to store motor speeds
-bool motor_speeds_updated = false; // Flag to indicate if motor speeds have been updated
+uint16_t motor_speeds[4];
+bool motor_speeds_updated = false;
 
 /*
   @name process_spi_cmd
@@ -35,15 +35,36 @@ void process_spi_cmd() {
   switch (jetson_spi.received_cmd) {
     case ESC_ARM_DISARM_CMD: {
       motors.armed = (jetson_spi.rd_data[0] == 0x01); // 1 to arm, 0 to disarm
+      if (!motors.armed) {
+        for (uint8_t i = 0; i < 4; i++) {
+          motor_speeds[i] = 1000; // Set to minimum throttle when disarmed
+        }
+        motor_speeds_updated = true;
+      }
       break;
     }
 
     case MOTOR_SPEEDS_CMD: {
-      // Each motor speed is 2 bytes (high byte first)
-      for (uint8_t i = 0; i < 4; i++) {
-        motor_speeds[i] = (jetson_spi.rd_data[i*2] << 8) | jetson_spi.rd_data[i*2 + 1];
+      if (motors.armed) {
+        uint16_t tmp_motor_speeds[4];
+        bool valid_speeds = true;
+        // Parse motor speeds from received data
+        // Each motor speed is 2 bytes (high byte first)
+        for (uint8_t i = 0; i < 4; i++) {
+          tmp_motor_speeds[i] = (jetson_spi.rd_data[i*2] << 8) | jetson_spi.rd_data[i*2 + 1];
+          if (tmp_motor_speeds[i] < 1000 || tmp_motor_speeds[i] > 2000) {
+            valid_speeds = false;
+            break;
+          }
+        }
+        // Update motor speeds if all are valid
+        if (valid_speeds) {
+          for (uint8_t i = 0; i < 4; i++) {
+            motor_speeds[i] = tmp_motor_speeds[i];
+          }
+          motor_speeds_updated = true;
+        }
       }
-      motor_speeds_updated = true;
       break;
     }
 
@@ -57,65 +78,63 @@ void process_spi_cmd() {
 
     case READ_REGISTER_CMD: {
       uint8_t reg_addr = jetson_spi.rd_data[0];
-      uint8_t reg_value[8];
-      uint8_t reg_value_len;
       switch (reg_addr) {
         case FIRMWARE_VERSION_REG: {
-          reg_value[0] = (FIRMWARE_VERSION >> 8) & 0xFF;
-          reg_value[1] = FIRMWARE_VERSION & 0xFF;
-          reg_value_len = 2;
+          write_spi_data(FIRMWARE_VERSION, 2);
           break;
         }
 
         case BATTERY_VOLTAGE_REG: {
           // Placeholder: Replace with actual battery voltage reading
           uint16_t battery_voltage = 12000; // Example: 12.0V represented as 12000mV
-          reg_value[0] = (battery_voltage >> 8) & 0xFF;
-          reg_value[1] = battery_voltage & 0xFF;
-          reg_value_len = 2;
+          const uint8_t reg_value[2] = {
+            (uint8_t) ((battery_voltage >> 8) & 0xFF),
+            (uint8_t) (battery_voltage & 0xFF)
+          };
+          write_spi_data(reg_value, 2);
           break;
         }
 
         case CURRENT_DRAW_REG: {
           // Placeholder: Replace with actual current draw reading
           uint16_t current_draw = 1500; // Example: 1.5A represented as 1500mA
-          reg_value[0] = (current_draw >> 8) & 0xFF;
-          reg_value[1] = current_draw & 0xFF;
-          reg_value_len = 2;
+          const uint8_t reg_value[2] = {
+            (uint8_t) ((current_draw >> 8) & 0xFF),
+            (uint8_t) (current_draw & 0xFF)
+          };
+          write_spi_data(reg_value, 2);
           break;
         }
 
         case TELEMETRY_DATA_REG: {
           // Placeholder: Replace with actual telemetry data
-          for (uint8_t i = 0; i < 8; i++) {
-            reg_value[i] = 0; // Example: Fill with zeros
-          }
-          reg_value_len = 8;
+          uint8_t reg_value[6] = {0};
+          write_spi_data(reg_value, 6);
           break;
         }
 
         case ARM_STATUS_REG: {
-          reg_value[0] = motors.armed ? 1 : 0;
-          reg_value_len = 1;
+          uint8_t reg_value = { (uint8_t) (motors.armed ? 1 : 0) };
+          write_spi_data(&reg_value, 1);
           break;
         }
 
         case MOTOR_SPEEDS_REG: {
+          uint8_t reg_value[8];
           for (uint8_t i = 0; i < 4; i++) {
             reg_value[i*2] = (motor_speeds[i] >> 8) & 0xFF;
             reg_value[i*2 + 1] = motor_speeds[i] & 0xFF;
           }
-          reg_value_len = 8;
+          write_spi_data(reg_value, 8);
           break;
         }
 
         default: {
-          // Invalid register address, return zero length
-          reg_value_len = 0;
+          uint8_t reg_value[2] = {0xB, 0xAD}; // Indicate invalid register with 0xBAD
+          write_spi_data(reg_value, 2);
           break;
         }
       }
-      write_spi_data(reg_value, reg_value_len);
       break;
     }
     
@@ -175,9 +194,7 @@ void loop() {
 
   // Update motor speeds if they have been changed
   if (motor_speeds_updated) {
-    for (int i = 0; i < 4; i++) {
-      set_motor_pulse_width(i, motor_speeds[i]);
-    }
+    update_motor_pulse_widths(motor_speeds);
     motor_speeds_updated = false;
 
     #ifdef ENABLE_SERIAL_DEBUG

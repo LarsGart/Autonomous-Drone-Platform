@@ -32,7 +32,7 @@ extern Jetson_SPI_t jetson_spi;
 
 uint8_t jetson_spi_init(void);
 void process_spi_rx_data(void);
-void write_spi_data(uint8_t* data, uint8_t length);
+void write_spi_data(const uint8_t* data, uint8_t length);
 
 #ifdef __cplusplus
 }
