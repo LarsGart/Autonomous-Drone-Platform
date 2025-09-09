@@ -18,7 +18,7 @@
 /*
   Constants
 */
-const uint8_t FIRMWARE_VERSION[2] = {0, 9}; // Firmware version 0.9
+const uint8_t FIRMWARE_VERSION[2] = {0, 10}; // Firmware version 0.10
 /*
   Variables
 */

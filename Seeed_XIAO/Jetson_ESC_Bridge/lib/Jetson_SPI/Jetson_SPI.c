@@ -1,8 +1,9 @@
 #include "Jetson_SPI.h"
 
-#define RING_BUFFER_SIZE 32
-#define SPI_RX_DMA 0
-#define SPI_TX_DMA 1
+#define RING_BUFFER_SIZE  32
+#define READ_IDLE_BYTES    4
+#define SPI_RX_DMA         0
+#define SPI_TX_DMA         1
 
 // Initialize the Jetson SPI instance
 Jetson_SPI_t jetson_spi = {
@@ -28,8 +29,9 @@ static const uint8_t SPI_DATA_LENGTH[NUM_CMDS] = {
 static uint8_t error_flag = 0; // 0 = no error
 
 static uint8_t rd_buffer[RING_BUFFER_SIZE]; // Buffer to hold received data
-static uint8_t rd_buffer_rd_ptr = 0; // Read pointer for rd_buffer
+static uint8_t rd_buffer_rd_ptr = 0;
 static uint8_t wr_buffer[RING_BUFFER_SIZE]; // Buffer to hold data to write
+static uint8_t wr_buffer_rd_ptr = 0;
 
 // ----------------------------------------------------------------
 // CRC-16-CCITT TABLE
@@ -73,18 +75,12 @@ static const uint16_t crc16_table[256] = {
 // ----------------------------------------------------------------
 /*
   @name compute_crc16
-  @brief Computes the CRC-16-CCITT checksum for the received command and data using a lookup table
-  @return The computed CRC-16 checksum
+  @brief Computes the CRC-16-CCITT checksum for a byte using a lookup table and updates the crc pointer
+  @param crc The pointer to the CRC value that is being updated
+  @param data The byte that is being used to calculate the CRC
 */
-static uint16_t compute_crc16() {
-  uint16_t crc = 0xFFFF;
-  // Compute CRC for command
-  crc = (crc << 8) ^ crc16_table[((crc >> 8) ^ jetson_spi.received_cmd) & 0xFF];
-  // Compute CRC for data
-  for (uint8_t i = 0; i < SPI_DATA_LENGTH[jetson_spi.received_cmd]; i++) {
-    crc = (crc << 8) ^ crc16_table[((crc >> 8) ^ jetson_spi.rd_data[i]) & 0xFF];
-  }
-  return crc;
+static void compute_crc16(uint16_t *crc, uint8_t data) {
+  *crc = (*crc << 8) ^ crc16_table[((*crc >> 8) ^ data) & 0xFF];
 }
 
 /*
@@ -92,8 +88,7 @@ static uint16_t compute_crc16() {
   @brief Checks if there is data available in the SPI receive buffer
   @return true if data is available, false otherwise
 */
-static bool isDataAvailable(void) {
-  // return rd_buffer_rd_ptr != rd_buffer_wr_ptr;
+static inline bool isDataAvailable(void) {
   uint16_t wr_ptr = RING_BUFFER_SIZE - dma_wrb[SPI_RX_DMA].BTCNT.reg;
   return rd_buffer_rd_ptr != wr_ptr;
 }
@@ -103,7 +98,7 @@ static bool isDataAvailable(void) {
   @brief Reads a byte from the SPI receive buffer
   @return The next byte from the buffer, or 0 if the buffer is empty
 */
-static uint8_t readByte(void) {
+static inline uint8_t readByte(void) {
   uint8_t data = rd_buffer[rd_buffer_rd_ptr++];
   if (rd_buffer_rd_ptr >= RING_BUFFER_SIZE) {
     rd_buffer_rd_ptr = 0; // Wrap around if needed
@@ -128,27 +123,34 @@ static inline void process_received_byte(uint8_t data) {
 
   static uint8_t expected_data_size = 0;
   static uint8_t data_index = 0;
+  static uint16_t computed_crc = 0xFFFF;
   static uint16_t received_crc = 0;
 
   switch (state) {
-    case WAIT_FOR_START_1:
+    case WAIT_FOR_START_1: {
       if (data == (SPI_START_BYTES >> 8)) { // Check first start byte
+        computed_crc = 0xFFFF; // Reset CRC
+        compute_crc16(&computed_crc, data);
         state = WAIT_FOR_START_2;
       }
       break;
+    }
 
-    case WAIT_FOR_START_2:
+    case WAIT_FOR_START_2: {
       if (data == (SPI_START_BYTES & 0xFF)) { // Check second start byte
+        compute_crc16(&computed_crc, data);
         state = WAIT_FOR_CMD;
       } else {
         state = WAIT_FOR_START_1; // Reset if not matched
       }
       break;
+    }
 
-    case WAIT_FOR_CMD:
+    case WAIT_FOR_CMD: {
       jetson_spi.received_cmd = data;
       // Validate command and get expected data size
       if (jetson_spi.received_cmd < NUM_CMDS) {
+        compute_crc16(&computed_crc, data);
         expected_data_size = SPI_DATA_LENGTH[jetson_spi.received_cmd];
         data_index = 0;
         state = WAIT_FOR_DATA;
@@ -156,34 +158,42 @@ static inline void process_received_byte(uint8_t data) {
         state = WAIT_FOR_START_1; // Invalid command, reset
       }
       break;
+    }
 
-    case WAIT_FOR_DATA:
+    case WAIT_FOR_DATA: {
       jetson_spi.rd_data[data_index++] = data;
+      compute_crc16(&computed_crc, data);
       if (data_index >= expected_data_size) {
         data_index = 0;
         state = WAIT_FOR_CRC_1;
       }
       break;
+    }
 
-    case WAIT_FOR_CRC_1:
+    case WAIT_FOR_CRC_1: {
       received_crc = data << 8; // Store first CRC byte
       state = WAIT_FOR_CRC_2;
       break;
+    }
 
-    case WAIT_FOR_CRC_2:
+    case WAIT_FOR_CRC_2: {
       received_crc |= data; // Store second CRC byte
-
-      // Compute CRC over command and data
-      uint16_t computed_crc = compute_crc16();
       if (computed_crc == received_crc) {
+        // Track where the read pointer to the write buffer is after a command is processed
+        // This is done because when the Jetson wants to read, it'll send a read command, then
+        // 4 idle bytes to allow the XIAO enough time to process and load data into the write buffer
+        // This read pointer is used as an offset for the write pointer when the write buffer is filled
+        wr_buffer_rd_ptr = RING_BUFFER_SIZE - dma_wrb[SPI_TX_DMA].BTCNT.reg;
         jetson_spi.rd_data_ready = true;
       }
       state = WAIT_FOR_START_1; // Reset state machine for next packet
       break;
+    }
 
-    default:
+    default: {
       state = WAIT_FOR_START_1; // Reset on unknown state
       break;
+    }
   }
 }
 
@@ -267,7 +277,7 @@ static void configure_sercom(void) {
 
 /*
   @name configure_dmac
-  @brief Configures the DMAC to 
+  @brief Configures the DMAC to transfer data between the SPI data register and the read/write circular buffers
 */
 static void configure_dmac(void) {
   /*
@@ -373,7 +383,9 @@ void process_spi_rx_data(void) {
   @param length Number of bytes to send
 */
 void write_spi_data(const uint8_t* data, uint8_t length) {
-  uint16_t wr_buffer_wr_ptr = RING_BUFFER_SIZE - dma_wrb[SPI_TX_DMA].BTCNT.reg + 1;
+  // Set the write pointer to be 4 bytes ahead of the read pointer to account for the 4 idle bytes
+  uint16_t wr_buffer_wr_ptr = wr_buffer_rd_ptr + READ_IDLE_BYTES - 1;
+  wr_buffer_wr_ptr = (wr_buffer_wr_ptr >= RING_BUFFER_SIZE ? wr_buffer_wr_ptr - RING_BUFFER_SIZE : wr_buffer_wr_ptr);
   for (uint8_t i = 0; i < length; i++) {
     wr_buffer[wr_buffer_wr_ptr++] = data[i];
     if (wr_buffer_wr_ptr >= RING_BUFFER_SIZE) {
