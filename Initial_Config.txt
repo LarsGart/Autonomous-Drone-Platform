@@ -1,0 +1,20 @@
+Update the Jetson using:
+apt-get update
+sudo apt-get upgrade
+sudo apt-get clean
+
+REBOOT
+
+Install Python 3 using:
+apt-get install python3-pip
+
+Install pyserial and spidev for UART and SPI communication using:
+pip3 install pyserial
+pip3 install spidev
+
+Allow spidev devices to be visible on startup:
+sudo touch /etc/modules-load.d/spidev.conf
+
+Add the word "spidev" to the file
+
+REBOOT
