@@ -1,6 +1,0 @@
-3/3
-6D output (x,y,z,euler_angles): relative the origin
-
-refactor flight controller into own class
-
-pid auto tune (?)
