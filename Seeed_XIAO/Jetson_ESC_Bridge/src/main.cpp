@@ -18,7 +18,7 @@
 /*
   Constants
 */
-const uint8_t FIRMWARE_VERSION[2] = {0, 10}; // Firmware version 0.10
+const uint8_t FIRMWARE_VERSION[2] = {0, 11}; // Firmware version 0.11
 /*
   Variables
 */
@@ -37,7 +37,7 @@ void process_spi_cmd() {
       motors.armed = (jetson_spi.rd_data[0] == 0x01); // 1 to arm, 0 to disarm
       if (!motors.armed) {
         for (uint8_t i = 0; i < 4; i++) {
-          motor_speeds[i] = 1000; // Set to minimum throttle when disarmed
+          motor_speeds[i] = 0; // Set to minimum throttle when disarmed
         }
         motor_speeds_updated = true;
       }
@@ -52,7 +52,7 @@ void process_spi_cmd() {
         // Each motor speed is 2 bytes (high byte first)
         for (uint8_t i = 0; i < 4; i++) {
           tmp_motor_speeds[i] = (jetson_spi.rd_data[i*2] << 8) | jetson_spi.rd_data[i*2 + 1];
-          if (tmp_motor_speeds[i] < 1000 || tmp_motor_speeds[i] > 2000) {
+          if (tmp_motor_speeds[i] > 2047) {
             valid_speeds = false;
             break;
           }
@@ -70,7 +70,7 @@ void process_spi_cmd() {
 
     case MOTOR_STOP_CMD: {
       for (uint8_t i = 0; i < 4; i++) {
-        motor_speeds[i] = 1000;
+        motor_speeds[i] = 0;
       }
       motor_speeds_updated = true;
       break;

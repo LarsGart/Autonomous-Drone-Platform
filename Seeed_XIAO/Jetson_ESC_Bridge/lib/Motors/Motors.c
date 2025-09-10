@@ -5,7 +5,7 @@
 #define PWM_PERIOD (48000000 / 16 / PWM_FREQUENCY) // Timer period for 50Hz with prescaler 16
 #define CLKS_PER_MICROSECOND (48000000 / 16 / 1000000) // Clock cycles per microsecond
 
-#define CONVERT_MICROS_TO_DUTY(micros) (CLKS_PER_MICROSECOND * micros) // Convert microseconds to timer ticks
+#define CONVERT_SPEED_TO_CC(speed) (CLKS_PER_MICROSECOND * (int)(0.4885 * speed + 1000)) // Convert speed (0-2047) to timer ticks
 
 // Initialize the Motors instance
 Motors_t motors = {
@@ -86,10 +86,10 @@ static void configure_timers(void) {
   /*
     Set initial duty cycles to 1000 microseconds (motors off)
   */
-  TCC0->CC[0].reg = CONVERT_MICROS_TO_DUTY(1000); // Motor 1
-  TCC0->CC[1].reg = CONVERT_MICROS_TO_DUTY(1000); // Motor 2
-  TCC0->CC[2].reg = CONVERT_MICROS_TO_DUTY(1000); // Motor 3
-  TCC0->CC[3].reg = CONVERT_MICROS_TO_DUTY(1000); // Motor 4
+  TCC0->CC[0].reg = CONVERT_SPEED_TO_CC(0); // Motor 1
+  TCC0->CC[1].reg = CONVERT_SPEED_TO_CC(0); // Motor 2
+  TCC0->CC[2].reg = CONVERT_SPEED_TO_CC(0); // Motor 3
+  TCC0->CC[3].reg = CONVERT_SPEED_TO_CC(0); // Motor 4
 
   timeout = 100000;
   while ((TCC0->SYNCBUSY.bit.CC0 || TCC0->SYNCBUSY.bit.CC1 || TCC0->SYNCBUSY.bit.CC2 || TCC0->SYNCBUSY.bit.CC3) && --timeout);
@@ -142,13 +142,13 @@ uint8_t motors_init(void) {
 /*
   @name update_motor_pulse_widths
   @brief Updates the pulse widths for all motors
-  @param pulse_widths Array of pulse widths for motors 0-3 (in microseconds)
+  @param speeds Array of speed values for motors 0-3 (0-2047)
 */
-void update_motor_pulse_widths(const uint16_t* pulse_widths) {
-  TCC0->CCB[0].reg = CONVERT_MICROS_TO_DUTY(pulse_widths[0]);
-  TCC0->CCB[1].reg = CONVERT_MICROS_TO_DUTY(pulse_widths[1]);
-  TCC0->CCB[2].reg = CONVERT_MICROS_TO_DUTY(pulse_widths[2]);
-  TCC0->CCB[3].reg = CONVERT_MICROS_TO_DUTY(pulse_widths[3]);
+void update_motor_pulse_widths(const uint16_t* speeds) {
+  TCC0->CCB[0].reg = CONVERT_SPEED_TO_CC(speeds[0]);
+  TCC0->CCB[1].reg = CONVERT_SPEED_TO_CC(speeds[1]);
+  TCC0->CCB[2].reg = CONVERT_SPEED_TO_CC(speeds[2]);
+  TCC0->CCB[3].reg = CONVERT_SPEED_TO_CC(speeds[3]);
 }
 // ----------------------------------------------------------------------
 // INTERRUPT HANDLER
