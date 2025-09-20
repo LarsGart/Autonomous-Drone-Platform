@@ -1,56 +1,59 @@
-'''
-Author: house4hack
-Editor: jerinabr
+from typing import Optional
 
-Code taken from https://github.com/house4hack/circuitpython-ibus
-'''
+PROTOCOL_SERVO = 0x40
+PROTOCOL_CHANNELS = 14
+PROTOCOL_OVERHEAD = 3
+PROTOCOL_LENGTH = 0x20
+
 
 class IBus:
-    def __init__(self, uart):
+
+    def __init__(self, uart) -> None:
         self.uart = uart
-        self.PROTOCOL_SERVO = 0x40
-        self.PROTOCOL_CHANNELS = 14
-        self.PROTOCOL_OVERHEAD = 3
-        self.PROTOCOL_LENGTH = 0x20
 
+    @staticmethod
+    def _checksum(data: bytes, initial: int) -> tuple[int, int]:
+        '''Compute IBUS checksum (two bytes).'''
+        total = initial + sum(data)
+        checksum = 0xFFFF - total
+        return (checksum >> 8) & 0xFF, checksum & 0xFF
 
-    def readUART(self):
-        data = None
-        while data is None:
+    def _read_byte(self) -> int:
+        '''Blocking read of a single byte from UART.'''
+        while True:
             data = self.uart.read(1)
-        return data
+            if data:
+                return data[0]
 
+    def _read_frame(self) -> Optional[list[int]]:
+        '''Read a single IBUS frame from UART.'''
 
-    #@staticmethod
-    def checksum(self, arr, initial):
-        # sum = initial + sum(arr)
-        # checksum = 0xFFFF - sum
-        # return checksum >> 8, checksum & 0xFF
-        sum = initial
-        for val in arr:
-            sum += val
-        checksum = 0xFFFF - sum
-        chA = checksum >> 8
-        chB = checksum & 0xFF
-        return chA, chB
-    
+        # First byte is length
+        frame_length = self._read_byte() - 1
+        if not (PROTOCOL_OVERHEAD <= frame_length < PROTOCOL_LENGTH):
+            return None
 
+        # Read remaining frame
+        buffer = bytearray(frame_length)
+        bytes_read = self.uart.readinto(buffer)
+        if bytes_read != frame_length:
+            return None
 
-    def readIBUS(self):
-        data = self.readUART()
+        # Parse frame
+        command = buffer[0] & 0xF0
 
-        expectedLen = data[0] - 1
-        if self.PROTOCOL_OVERHEAD <= expectedLen < self.PROTOCOL_LENGTH:
-            dataArr = bytearray(expectedLen)
-            totalRead = self.uart.readinto(dataArr)
-            if totalRead == expectedLen:
-                cmd = dataArr[0] & 0xF0
+        # Extract checksum (last two bytes)
+        received_chA, received_chB = buffer[-1], buffer[-2]
+        calc_chA, calc_chB = self._checksum(buffer[:-2], frame_length + 1)
 
-                chA1, chB1 = dataArr[-1], dataArr[-2]
-                chA2, chB2 = self.checksum(dataArr[:-2], expectedLen + 1)
-                if chA1 == chA2 and chB1 == chB2:
-                    if cmd == self.PROTOCOL_SERVO:
-                        return [(dataArr[2 * i + 2] << 8) | dataArr[2 * i + 1] for i in range(self.PROTOCOL_CHANNELS)]
+        if (received_chA, received_chB) != (calc_chA, calc_chB):
+            return None
+
+        if command == PROTOCOL_SERVO:
+            channels = [
+                (buffer[2 * i + 2] << 8) | buffer[2 * i + 1]
+                for i in range(PROTOCOL_CHANNELS)
+            ]
+            return channels
 
         return None
-    
