@@ -159,25 +159,12 @@ void setup() {
   #endif
 
   // Initialize peripherals
-  uint8_t spi_init_status = jetson_spi_init();
-  uint8_t motor_init_status = motors_init();
+  jetson_spi_init();
+  motors_init();
   #ifdef ENABLE_SERIAL_DEBUG
     if (serial_initialized) {
-      if (spi_init_status != 0) {
-        Serial.print("SPI initialization failed with error code: ");
-        Serial.println(spi_init_status);
-      }
-      else {
-        Serial.println("SPI initialized successfully");
-      }
-
-      if (motor_init_status != 0) {
-        Serial.print("Motor initialization failed with error code: ");
-        Serial.println(motor_init_status);
-      }
-      else {
-        Serial.println("Motors initialized successfully");
-      }
+      Serial.println("SPI initialized successfully");
+      Serial.println("Motors initialized successfully");
     }
   #endif
 }

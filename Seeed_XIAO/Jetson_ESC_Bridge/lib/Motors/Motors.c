@@ -12,9 +12,6 @@ Motors_t motors = {
   .armed = false
 };
 
-// Error flag
-static uint8_t error_flag = 0;
-
 // ----------------------------------------------------------------------
 // PRIVATE FUNCTIONS
 // ----------------------------------------------------------------------
@@ -29,16 +26,17 @@ static void configure_pins(void) {
     Motor 3: PA10
     Motor 4: PA2
   */
-  // Set pin directions to output
-  PORT->Group[PORTA].DIRSET.reg = PORT_PA02 |
-                                  PORT_PA08 |
-                                  PORT_PA10 |
-                                  PORT_PA11;
   // Disable pin mux
   PORT->Group[PORTA].PINCFG[PIN_PA02].bit.PMUXEN = 0;
   PORT->Group[PORTA].PINCFG[PIN_PA08].bit.PMUXEN = 0;
   PORT->Group[PORTA].PINCFG[PIN_PA10].bit.PMUXEN = 0;
   PORT->Group[PORTA].PINCFG[PIN_PA11].bit.PMUXEN = 0;
+
+  // Set pin directions to output
+  PORT->Group[PORTA].DIRSET.reg = PORT_PA02 |
+                                  PORT_PA08 |
+                                  PORT_PA10 |
+                                  PORT_PA11;
 }
 
 /*
@@ -53,36 +51,19 @@ static void configure_timers(void) {
   GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID(GCM_TCC0_TCC1) |  // Select the TCC0 and TCC1 clock
                       GCLK_CLKCTRL_GEN_GCLK0 |          // Use generic clock generator 0
                       GCLK_CLKCTRL_CLKEN;               // Enable the clock
-
-  uint32_t timeout = 100000; // Timeout counter to prevent infinite loop
-  while (GCLK->STATUS.bit.SYNCBUSY && --timeout);
-  if (timeout == 0) {
-    error_flag = 1; // Indicate timeout error
-    return;
-  }
+  while (GCLK->STATUS.bit.SYNCBUSY);
   /*
     Reset TCC0 and wait for synchronization
   */
   TCC0->CTRLA.bit.SWRST = 1;
-  timeout = 100000;
-  while ((TCC0->CTRLA.bit.SWRST || TCC0->SYNCBUSY.bit.SWRST) && --timeout);
-  if (timeout == 0) {
-    error_flag = 2; // Indicate timeout error
-    return;
-  }
+  while (TCC0->CTRLA.bit.SWRST || TCC0->SYNCBUSY.bit.SWRST);
   /*
     Configure TCC0 for PWM generation
   */
   TCC0->CTRLA.reg = TCC_CTRLA_PRESCALER_DIV16;  // Set prescaler to 16
   TCC0->WAVE.reg = TCC_WAVE_WAVEGEN_NPWM;       // Normal PWM mode
   TCC0->PER.reg = PWM_PERIOD;                   // Set period for desired frequency
-
-  timeout = 100000;
-  while ((TCC0->SYNCBUSY.bit.PER || TCC0->SYNCBUSY.bit.WAVE) && --timeout);
-  if (timeout == 0) {
-    error_flag = 3; // Indicate timeout error
-    return;
-  }
+  while (TCC0->SYNCBUSY.bit.PER || TCC0->SYNCBUSY.bit.WAVE);
   /*
     Set initial duty cycles to 1000 microseconds (motors off)
   */
@@ -90,13 +71,7 @@ static void configure_timers(void) {
   TCC0->CC[1].reg = CONVERT_SPEED_TO_CC(0); // Motor 2
   TCC0->CC[2].reg = CONVERT_SPEED_TO_CC(0); // Motor 3
   TCC0->CC[3].reg = CONVERT_SPEED_TO_CC(0); // Motor 4
-
-  timeout = 100000;
-  while ((TCC0->SYNCBUSY.bit.CC0 || TCC0->SYNCBUSY.bit.CC1 || TCC0->SYNCBUSY.bit.CC2 || TCC0->SYNCBUSY.bit.CC3) && --timeout);
-  if (timeout == 0) {
-    error_flag = 4; // Indicate timeout error
-    return;
-  }
+  while (TCC0->SYNCBUSY.bit.CC0 || TCC0->SYNCBUSY.bit.CC1 || TCC0->SYNCBUSY.bit.CC2 || TCC0->SYNCBUSY.bit.CC3);
   /*
     Enable TCC0 interrupts for overflow and match/capture channels
   */
@@ -109,13 +84,7 @@ static void configure_timers(void) {
     Enable TCC0
   */
   TCC0->CTRLA.bit.ENABLE = 1;
-
-  timeout = 100000;
-  while (TCC0->SYNCBUSY.bit.ENABLE && --timeout);
-  if (timeout == 0) {
-    error_flag = 5; // Indicate timeout error
-    return;
-  }
+  while (TCC0->SYNCBUSY.bit.ENABLE);
 }
 
 // ----------------------------------------------------------------------
@@ -124,9 +93,8 @@ static void configure_timers(void) {
 /*
   @name motors_init
   @brief Initializes motor control by configuring pins and timers
-  @return 0 if successful, non-zero error code otherwise
 */
-uint8_t motors_init(void) {
+void motors_init(void) {
   NVIC_DisableIRQ(TCC0_IRQn);
   NVIC_ClearPendingIRQ(TCC0_IRQn);
   NVIC_SetPriority(TCC0_IRQn, 1);
@@ -135,8 +103,6 @@ uint8_t motors_init(void) {
   configure_timers();
 
   NVIC_EnableIRQ(TCC0_IRQn);
-
-  return error_flag; // Return 0 if successful, non-zero for errors
 }
 
 /*

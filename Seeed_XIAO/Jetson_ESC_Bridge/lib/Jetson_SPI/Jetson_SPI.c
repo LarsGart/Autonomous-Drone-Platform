@@ -26,8 +26,6 @@ static const uint8_t SPI_DATA_LENGTH[NUM_CMDS] = {
 };
 
 // Variables
-static uint8_t error_flag = 0; // 0 = no error
-
 static uint8_t rd_buffer[RING_BUFFER_SIZE]; // Buffer to hold received data
 static uint8_t rd_buffer_rd_ptr = 0;
 static uint8_t wr_buffer[RING_BUFFER_SIZE]; // Buffer to hold data to write
@@ -218,8 +216,7 @@ static void configure_pins(void) {
 
 /*
   @name configure_sercom
-  @brief Configures the SERCOM0 as an SPI slave. This function sets up the SERCOM0 registers, enables the clock,
-  and configures the SPI interrupt.
+  @brief Configures SERCOM0 as a SPI slave
 */
 static void configure_sercom(void) {
   /*
@@ -229,24 +226,12 @@ static void configure_sercom(void) {
   GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID(GCM_SERCOM0_CORE) | // Select the SERCOM0 core clock
                       GCLK_CLKCTRL_GEN_GCLK0 |            // Use generic clock generator 0
                       GCLK_CLKCTRL_CLKEN;                 // Enable the clock
-  
-  uint32_t timeout = 100000; // Timeout counter to prevent infinite loop
-  while (GCLK->STATUS.bit.SYNCBUSY && --timeout);
-  if (timeout == 0) {
-    error_flag = 1; // Indicate timeout error
-    return;
-  }
+  while (GCLK->STATUS.bit.SYNCBUSY);
   /*
     Reset SERCOM0 and wait for synchronization
   */
   SERCOM0->SPI.CTRLA.bit.SWRST = 1;
-
-  timeout = 100000;
-  while ((SERCOM0->SPI.CTRLA.bit.SWRST || SERCOM0->SPI.SYNCBUSY.bit.SWRST) && --timeout);
-  if (timeout == 0) {
-    error_flag = 2; // Indicate timeout error
-    return;
-  }
+  while (SERCOM0->SPI.CTRLA.bit.SWRST || SERCOM0->SPI.SYNCBUSY.bit.SWRST);
   /*
     Set up SERCOM0 SPI registers
   */
@@ -255,24 +240,12 @@ static void configure_sercom(void) {
                             SERCOM_SPI_CTRLA_DIPO(3);         // Set MOSI to PAD3
 
   SERCOM0->SPI.CTRLB.reg =  SERCOM_SPI_CTRLB_RXEN;            // Enable receiver
-
-  timeout = 100000;
-  while (SERCOM0->SPI.SYNCBUSY.bit.CTRLB && --timeout);
-  if (timeout == 0) {
-    error_flag = 3; // Indicate timeout error
-    return;
-  }
+  while (SERCOM0->SPI.SYNCBUSY.bit.CTRLB);
   /*
     Enable SERCOM0 SPI
   */
   SERCOM0->SPI.CTRLA.bit.ENABLE = 1;
-
-  timeout = 100000;
-  while (SERCOM0->SPI.SYNCBUSY.bit.ENABLE && --timeout);
-  if (timeout == 0) {
-    error_flag = 4; // Indicate timeout error
-    return;
-  }
+  while (SERCOM0->SPI.SYNCBUSY.bit.ENABLE);
 }
 
 /*
@@ -355,12 +328,10 @@ static void configure_dmac(void) {
   @name jetson_spi_init
   @brief Initializes the Jetson SPI and DMAC
 */
-uint8_t jetson_spi_init(void) {
+void jetson_spi_init(void) {
   configure_pins();
   configure_sercom();
   configure_dmac();
-
-  return error_flag; // Return 0 if successful, non-zero for errors
 }
 
 /*

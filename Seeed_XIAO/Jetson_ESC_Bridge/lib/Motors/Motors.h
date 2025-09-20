@@ -19,7 +19,7 @@ typedef struct {
 extern Motors_t motors;
 
 // Functions
-uint8_t motors_init(void);
+void motors_init(void);
 void update_motor_pulse_widths(const uint16_t* pulse_widths);
 
 #ifdef __cplusplus
