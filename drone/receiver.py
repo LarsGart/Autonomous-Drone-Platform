@@ -12,6 +12,8 @@ UART_BAUDRATE = 115200
 CHANNEL_MIN = 1000
 CHANNEL_MAX = 2000
 CHANNEL_CENTER = 1500
+CHANNEL_NORM = 0.002
+CHANNEL_OFFSET = -3.0
 CHANNEL_DEADBAND = 8
 MISSED_READINGS_THRESHOLD = 100
 
@@ -54,17 +56,20 @@ class Receiver:
             self.missed_readings += 1
             if self.missed_readings > MISSED_READINGS_THRESHOLD:
                 self.output = FAILSAFE
-
+    
         return self.output
 
     def _read_normalized(self) -> RCChannels:
-        '''Read normalized RC input in range ~[0.0, 1.0].'''
+        '''
+        Read normalized RC input directional components in range ~[-1.0, 1.0]).
+        Throttle is normalized to [0.0, 1.0].
+        '''
         channels = self._read()
         return RCChannels(
-            roll=(channels.roll - CHANNEL_MIN) / (CHANNEL_MAX - CHANNEL_MIN),
-            pitch=(channels.pitch - CHANNEL_MIN) / (CHANNEL_MAX - CHANNEL_MIN),
-            throttle=(channels.throttle - CHANNEL_MIN) / (CHANNEL_MAX - CHANNEL_MIN),
-            yaw=(channels.yaw - CHANNEL_MIN) / (CHANNEL_MAX - CHANNEL_MIN),
+            roll=CHANNEL_NORM * channels.roll + CHANNEL_OFFSET,
+            pitch=CHANNEL_NORM * channels.pitch + CHANNEL_OFFSET,
+            throttle=CHANNEL_NORM / 2 * channels.throttle - 1,
+            yaw=CHANNEL_NORM * channels.yaw + CHANNEL_OFFSET,
         )
 
     def __del__(self) -> None:

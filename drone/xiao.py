@@ -34,6 +34,9 @@ class Xiao:
         self.spi.max_speed_hz = clock
         self.spi.mode = 0
 
+    def __del__(self):
+        self.spi.close()
+
     @staticmethod
     def _compute_crc(data: list[int]) -> int:
         '''Compute CRC-16-CCITT over a byte stream.'''
