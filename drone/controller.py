@@ -1,9 +1,8 @@
-from typing import Optional
 import numpy as np
 
-from motors import Motors # TODO: implement
 from receiver import Receiver
 from lqr import LQR
+from xiao import Xiao
 from zed import Zed
 
 """
@@ -36,20 +35,17 @@ class Controller:
       - Torque -> motor speed conversions require tuning.
     '''
 
-    DEFAULT_I = np.array([0.02, 0.02, 0.04])  # inertia for roll, pitch, yaw (kg·m^2) (placeholders)
-    DEFAULT_DT = 1.0 / 50.0  # controller sample time (s)
-
     THROTTLE_CUTOFF = 1012
     MAX_MOTOR = 2000
     MIN_MOTOR = 1000
 
-    def __init__(self, zed: 'Zed', receiver: 'Receiver', motors: 'Motors', dt: float = DEFAULT_DT, inertia: Optional[np.ndarray] = None) -> None:
-        self.zed = zed
-        self.rx = receiver
-        self.motors = motors
+    def __init__(self) -> None:
+        self.zed = Zed()
+        self.rx = Receiver()
+        self.xiao = Xiao()
 
-        self.dt = dt
-        self.inertia = inertia if inertia is not None else Controller.DEFAULT_I.copy()
+        self.dt = 1.0 / 50.0  # controller sample time (s)
+        self.inertia = 1.0 / 50.0  # controller sample time (s)
 
         # build discrete A/B for attitude (3 axes, each a 2-state double integrator)
         A_c = np.array([[0.0, 1.0], [0.0, 0.0]])  # continuous-time per-axis
@@ -174,23 +170,4 @@ class Controller:
 
         motor_speeds = baseline + motor_deltas
         motor_speeds = self._clamp_motor_speeds(motor_speeds)
-
-        # send to motors (assumes Motors.output_speeds takes sequence of 4 ints)
-        try:
-            self.motors.output_speeds(list(motor_speeds))
-        except Exception:
-            # fallback: try different method name used in older code
-            if hasattr(self.motors, 'outputSpeeds'):
-                self.motors.outputSpeeds(list(motor_speeds))
-            else:
-                raise
-
-    def run_once_from_rx(self) -> None:
-        '''Read RX and run one control update.'''
-        rx = self.rx.read()  # RCChannels namedtuple
-        # normalized sticks: [-1,1] using center 1500
-        roll_norm = (rx.roll - 1500) / 500.0
-        pitch_norm = (rx.pitch - 1500) / 500.0
-        yaw_norm = (rx.yaw - 1500) / 500.0
-        throttle = int(rx.throttle)
-        self._update(throttle, roll_norm, pitch_norm, yaw_norm)
+        self.xiao._set_speeds(list(motor_speeds))

@@ -26,7 +26,7 @@ REG = {
     'MOTOR_SPEEDS':     {'addr': 0x05, 'length': 8},
 }
 
-class XiaoESC:
+class Xiao:
 
     def __init__(self, bus: int = SPI_BUS, device: int = SPI_SS, clock: int = SPI_CLOCK):
         self.spi = spidev.SpiDev()
