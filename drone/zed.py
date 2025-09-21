@@ -5,6 +5,8 @@ import pyzed.sl as sl
 Euler = namedtuple('Euler', ['roll', 'pitch', 'yaw'])
 Quaternion = namedtuple('Quaternion', ['x', 'y', 'z', 'w'])
 SSR = namedtuple('StateSpaceRepresentation', ['x', 'y', 'z', 'vx', 'vy', 'vz', 'roll', 'pitch', 'yaw', 'wx', 'wy', 'wz'])
+LinearVelocity = namedtuple('LinearVelocity', ['vx', 'vy', 'vz'])
+AngularVelocity = namedtuple('AngularVelocity', ['wx', 'wy', 'wz'])
 
 
 class Zed:
@@ -15,11 +17,10 @@ class Zed:
         self.pose = sl.Pose()
         self.sensors_data = sl.SensorsData()
 
-        init_params = sl.InitParameters(
-            coordinate_units=sl.UNIT.METER,
-            camera_resolution=sl.RESOLUTION.HD720,
-            coordinate_system=sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP,
-        )
+        init_params = sl.InitParameters()
+        init_params.coordinate_units = sl.UNIT.METER
+        init_params.camera_resolution = sl.RESOLUTION.HD720
+        init_params.coordinate_system = sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP
 
         if self.zed.is_opened():
             self.zed.disable_spatial_mapping()
@@ -28,12 +29,11 @@ class Zed:
         if self.zed.open(init_params) != sl.ERROR_CODE.SUCCESS:
             raise RuntimeError('Failed to open ZED camera.')
 
-        # TODO: Fix this ish
-        # if tracking:
-        #     tracking_params = sl.PositionalTrackingParameters()
-        #     if self.zed.enable_positional_tracking(tracking_params) != sl.ERROR_CODE.SUCCESS:
-        #         self.zed.close()
-        #         raise RuntimeError('Failed to enable positional tracking.')
+        if tracking:
+            tracking_params = sl.PositionalTrackingParameters(_init_pos=sl.Transform())
+            if self.zed.enable_positional_tracking(tracking_params) != sl.ERROR_CODE.SUCCESS:
+                self.zed.close()
+                raise RuntimeError('Failed to enable positional tracking.')
 
         # if spatial_mapping:
         #     mapping_params = sl.SpatialMappingParameters(map_type=sl.SPATIAL_MAP_TYPE.FUSED_POINT_CLOUD)
@@ -77,6 +77,18 @@ class Zed:
         wx, wy, wz = self._get_angular_velocity()
         roll, pitch, yaw = self._get_euler()
         return SSR(x, y, z, vx, vy, vz, roll, pitch, yaw, wx, wy, wz)
+
+    def _get_linear_velocity(self):
+        '''Return linear velocity in world frame.'''
+        if self.zed.get_position(self.pose, sl.REFERENCE_FRAME.WORLD) == sl.ERROR_CODE.SUCCESS:
+            return LinearVelocity(*self.pose.get_velocity(sl.Velocity()).get())
+        return LinearVelocity(0.0, 0.0, 0.0)
+
+    def _get_angular_velocity(self):
+        '''Return angular velocity [wx, wy, wz] in deg/s.'''
+        if self._get_sensors():
+            return AngularVelocity(*self.sensors_data.get_imu_data().get_angular_velocity())
+        return AngularVelocity(0.0, 0.0, 0.0)
 
     def _get_position_diff(self):
         '''Return delta position vector since last frame.'''
