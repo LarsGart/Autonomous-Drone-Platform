@@ -21,12 +21,12 @@ class Zed:
             coordinate_system=sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP,
         )
 
-        if self.zed.open(init_params) != sl.ERROR_CODE.SUCCESS:
-            raise RuntimeError('Failed to open ZED camera.')
-
         if self.zed.is_opened():
             self.zed.disable_spatial_mapping()
             self.zed.close()
+
+        if self.zed.open(init_params) != sl.ERROR_CODE.SUCCESS:
+            raise RuntimeError('Failed to open ZED camera.')
 
         # TODO: Fix this ish
         # if tracking:
