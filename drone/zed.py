@@ -21,24 +21,25 @@ class Zed:
             coordinate_system=sl.COORDINATE_SYSTEM.RIGHT_HANDED_Y_UP,
         )
 
+        if self.zed.open(init_params) != sl.ERROR_CODE.SUCCESS:
+            raise RuntimeError('Failed to open ZED camera.')
+
         if self.zed.is_opened():
             self.zed.disable_spatial_mapping()
             self.zed.close()
 
-        if self.zed.open(init_params) != sl.ERROR_CODE.SUCCESS:
-            raise RuntimeError('Failed to open ZED camera.')
+        # TODO: Fix this ish
+        # if tracking:
+        #     tracking_params = sl.PositionalTrackingParameters()
+        #     if self.zed.enable_positional_tracking(tracking_params) != sl.ERROR_CODE.SUCCESS:
+        #         self.zed.close()
+        #         raise RuntimeError('Failed to enable positional tracking.')
 
-        if tracking:
-            tracking_params = sl.PositionalTrackingParameters(_init_pos=sl.Transform())
-            if self.zed.enable_positional_tracking(tracking_params) != sl.ERROR_CODE.SUCCESS:
-                self.zed.close()
-                raise RuntimeError('Failed to enable positional tracking.')
-
-        if spatial_mapping:
-            mapping_params = sl.SpatialMappingParameters(map_type=sl.SPATIAL_MAP_TYPE.FUSED_POINT_CLOUD)
-            if self.zed.enable_spatial_mapping(mapping_params) != sl.ERROR_CODE.SUCCESS:
-                self.zed.close()
-                raise RuntimeError('Failed to enable spatial mapping.')
+        # if spatial_mapping:
+        #     mapping_params = sl.SpatialMappingParameters(map_type=sl.SPATIAL_MAP_TYPE.FUSED_POINT_CLOUD)
+        #     if self.zed.enable_spatial_mapping(mapping_params) != sl.ERROR_CODE.SUCCESS:
+        #         self.zed.close()
+        #         raise RuntimeError('Failed to enable spatial mapping.')
 
         # Initialize previous position
         self.zed.get_position(self.pose, sl.REFERENCE_FRAME.WORLD)

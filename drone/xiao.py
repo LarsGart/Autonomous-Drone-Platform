@@ -73,8 +73,15 @@ class Xiao:
         self._send(CMD['STOP_MOTORS'], [0xFF])
 
     def _set_speeds(self, speeds: list[int]):
+        # Remap motors to go clockwise around drone starting at front right corner
+        reordered_speeds = [
+            speeds[1],
+            speeds[0],
+            speeds[2],
+            speeds[3]
+        ]
         payload = []
-        for speed in speeds:
+        for speed in reordered_speeds:
             payload += [(speed >> 8) & 0xFF, speed & 0xFF]
         self._send(CMD['SET_MOTOR_SPEEDS'], payload)
 

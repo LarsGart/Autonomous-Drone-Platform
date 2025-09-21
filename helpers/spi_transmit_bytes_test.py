@@ -40,6 +40,7 @@ def sendData(cmd, bytes):
 
 def sendMotorSpeeds(speeds: list):
    byte_stream = [speed >> i & 0xFF for speed in speeds for i in (8, 0)]
+   print(byte_stream)
    sendData(0x01, byte_stream)
 
 def sendMotorStop():
@@ -61,7 +62,7 @@ try:
    # print(toHex(readRegister(0x04, 1)))
    # sleep(2)
    # print("Sending speeds")
-   # sendMotorSpeeds([1600, 1000, 2000, 1200])
+   # sendMotorSpeeds([300, 400, 200, 100])
    # sleep(0.5)
    # print("Reading motor speeds register")
    # print(toHex(readRegister(0x05, 8)))
@@ -86,7 +87,7 @@ try:
    # sleep(0.5)
    # print("Reading bad register")
    # print(toHex(readRegister(0x07, 2)))
-   sendData(0x00, [0x01])
+   # sendData(0x00, [0x01])
 finally:
    # close SPI
    print("Closing SPI")
