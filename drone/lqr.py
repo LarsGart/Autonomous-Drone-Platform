@@ -28,7 +28,7 @@ class LQR:
     @staticmethod
     def _solve_discrete_lqr(A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         '''Solve discrete LQR gain K and solution P.'''
-        P = LQR._compute_dare(A, B, Q, R)
+        P = LQR._solve_dare(A, B, Q, R)
         # K = (R + B^T P B)^{-1} B^T P A
         K = np.linalg.inv(R + B.T @ P @ B) @ (B.T @ P @ A)
         return K, P

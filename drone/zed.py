@@ -1,3 +1,4 @@
+import time
 import math
 from collections import namedtuple
 import pyzed.sl as sl
@@ -44,6 +45,7 @@ class Zed:
         # Initialize previous position
         self.zed.get_position(self.pose, sl.REFERENCE_FRAME.WORLD)
         self.previous_position = self.pose.get_translation(sl.Translation()).get()
+        self.previous_time = time.time()
 
     def _get_quaternion(self) -> Quaternion:
         if self._get_sensors():
@@ -79,24 +81,26 @@ class Zed:
         return SSR(x, y, z, vx, vy, vz, roll, pitch, yaw, wx, wy, wz)
 
     def _get_linear_velocity(self):
-        '''Return linear velocity in world frame.'''
-        if self.zed.get_position(self.pose, sl.REFERENCE_FRAME.WORLD) == sl.ERROR_CODE.SUCCESS:
-            return LinearVelocity(*self.pose.get_velocity(sl.Velocity()).get())
-        return LinearVelocity(0.0, 0.0, 0.0)
+        '''Return delta position vector since last frame.'''
+        if self.zed.grab() == sl.ERROR_CODE.SUCCESS:
+            curr_x, curr_y, curr_z = self._get_position_global()
+            current_time = time.time()
+
+            diff_x = curr_x - self.previous_position
+            diff_y = curr_y - self.previous_position
+            diff_z = curr_z - self.previous_position
+
+            diff_time = current_time - self.previous_time
+
+            self.previous_position = current_position
+            self.previous_time = time.time()
+            return diff_x / diff_time, diff_y / diff_time, diff_z / diff_time
 
     def _get_angular_velocity(self):
         '''Return angular velocity [wx, wy, wz] in deg/s.'''
         if self._get_sensors():
             return AngularVelocity(*self.sensors_data.get_imu_data().get_angular_velocity())
         return AngularVelocity(0.0, 0.0, 0.0)
-
-    def _get_position_diff(self):
-        '''Return delta position vector since last frame.'''
-        if self.zed.grab() == sl.ERROR_CODE.SUCCESS:
-            curr_pos = self._get_position_global()
-            diff = [c - p for c, p in zip(curr_pos, self.previous_position)]
-            self.previous_position = curr_pos
-            return diff
 
     def _get_position_global(self):
         '''Return position in world frame (advances camera frame).'''

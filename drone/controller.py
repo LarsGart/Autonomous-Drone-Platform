@@ -1,6 +1,5 @@
 import numpy as np
 
-from receiver import Receiver
 from lqr import LQR
 from xiao import Xiao
 from zed import Zed
@@ -41,7 +40,6 @@ class Controller:
 
     def __init__(self) -> None:
         self.zed = Zed()
-        self.rx = Receiver()
         self.xiao = Xiao()
 
         self.dt = 1.0 / 50.0  # controller sample time (s)
