@@ -1,8 +1,6 @@
 import numpy as np
-
 from lqr import LQR
 from xiao import Xiao
-from zed import Zed
 
 """
 ------------- Channel Mappings -------------
@@ -22,7 +20,7 @@ from zed import Zed
                  2     1
 """
 
-class Controller:
+class Controller():
     '''Flight controller using LQR for attitude (roll, pitch, yaw).
 
       - Uses Zed._get_state_space_representation() to read angles and angular velocities.
@@ -38,8 +36,8 @@ class Controller:
     MAX_MOTOR = 2000
     MIN_MOTOR = 1000
 
-    def __init__(self) -> None:
-        self.zed = Zed()
+    def __init__(self, zed) -> None:
+        self.zed = zed
         self.xiao = Xiao()
 
         self.dt = 1.0 / 50.0  # controller sample time (s)
@@ -51,9 +49,10 @@ class Controller:
         # build block-diagonal for 3 axes
         Ac = np.kron(np.eye(3), A_c)  # 6x6
 
-        B_blocks = []
-        for I_axis in self.inertia:
-            B_blocks.append(np.array([[0.0], [1.0 / I_axis]]))
+        # B_blocks = []
+        # for I_axis in self.inertia:
+        #     B_blocks.append(np.array([[0.0], [1.0 / I_axis]]))
+        B_blocks = np.array([[0.0], [0.0], [1.0 / self.inertia]]) # patch
         Bc = np.zeros((6, 3))
         for i in range(3):
             Bc[2 * i:2 * i + 2, i:i + 1] = B_blocks[i]

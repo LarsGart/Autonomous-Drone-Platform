@@ -40,7 +40,7 @@ class Receiver:
     def _read(self) -> RCChannels:
         '''Read receiver input; applies clipping, deadband, and failsafe if needed.'''
         self.uart.reset_input_buffer()
-        self.input = self.ibus.readIBUS()
+        self.input = self.ibus._read_frame()
 
         if self.input:
             clipped = np.clip(self.input, CHANNEL_MIN, CHANNEL_MAX)
