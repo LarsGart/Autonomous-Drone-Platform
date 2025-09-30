@@ -20,3 +20,25 @@ Frame data is captured using the M12 Lens Camera for Raspberry Pi and is preproc
 [AutoPilot: Automating Co-Design Space Exploration for Autonomous UAVs](https://arxiv.org/abs/2102.02988.pdf)
 
 [Learning to Fly—a Gym Environment with PyBullet Physics for Reinforcement Learning of Multi-agent Quadcopter Control](https://arxiv.org/abs/2103.02142v3.pdf)
+
+
+Update the Jetson using:
+apt-get update
+sudo apt-get upgrade
+sudo apt-get clean
+
+REBOOT
+
+Install Python 3 using:
+apt-get install python3-pip
+
+Install pyserial and spidev for UART and SPI communication using:
+pip3 install pyserial
+pip3 install spidev
+
+Allow spidev devices to be visible on startup:
+sudo touch /etc/modules-load.d/spidev.conf
+
+Add the word "spidev" to the file
+
+REBOOT
