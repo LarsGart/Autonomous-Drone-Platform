@@ -3,34 +3,29 @@
 #include <Motors.h>
 #include <Monitoring.h>
 
-/*
-  Debug
-*/
+// Debug
 // #define ENABLE_SERIAL_DEBUG // Uncomment to enable serial debugging
-/*
-  Read-only register addresses
-*/
+
+// Read-only register addresses
 #define FIRMWARE_VERSION_REG  0x00
 #define BATTERY_VOLTAGE_REG   0x01
-#define CURRENT_DRAW_REG      0x02
-#define TELEMETRY_DATA_REG    0x03
-#define ARM_STATUS_REG        0x04
-#define MOTOR_SPEEDS_REG      0x05
-/*
-  Constants
-*/
-const uint8_t FIRMWARE_VERSION[2] = {0, 11}; // Firmware version 0.11
-/*
-  Variables
-*/
+#define ESC_CURRENT_REG       0x02
+#define JETSON_CURRENT_REG    0x03
+#define TELEMETRY_DATA_REG    0x04
+#define ARM_STATUS_REG        0x05
+#define MOTOR_SPEEDS_REG      0x06
+
+// Constants
+const uint8_t FIRMWARE_VERSION[2] = {0, 12}; // Firmware version 0.12
+
+// Variables
 bool serial_initialized = false;
 
 uint16_t motor_speeds[4];
 bool motor_speeds_updated = false;
 
-/*
-  @name process_spi_cmd
-  @brief Processes the received SPI command and takes appropriate action
+/*!
+  \brief Read/write data based on the received SPI command
 */
 void process_spi_cmd() {
   switch (jetson_spi.received_cmd) {
@@ -86,30 +81,40 @@ void process_spi_cmd() {
         }
 
         case BATTERY_VOLTAGE_REG: {
-          // Placeholder: Replace with actual battery voltage reading
-          uint16_t battery_voltage = 12000; // Example: 12.0V represented as 12000mV
           const uint8_t reg_value[2] = {
-            (uint8_t) ((battery_voltage >> 8) & 0xFF),
-            (uint8_t) (battery_voltage & 0xFF)
+            (uint8_t) ((monitoring.battery_voltage_mv >> 8) & 0xFF),
+            (uint8_t) (monitoring.battery_voltage_mv & 0xFF)
           };
           write_spi_data(reg_value, 2);
           break;
         }
 
-        case CURRENT_DRAW_REG: {
-          // Placeholder: Replace with actual current draw reading
-          uint16_t current_draw = 1500; // Example: 1.5A represented as 1500mA
+        case ESC_CURRENT_REG: {
           const uint8_t reg_value[2] = {
-            (uint8_t) ((current_draw >> 8) & 0xFF),
-            (uint8_t) (current_draw & 0xFF)
+            (uint8_t) ((monitoring.esc_current_ma >> 8) & 0xFF),
+            (uint8_t) (monitoring.esc_current_ma & 0xFF)
           };
           write_spi_data(reg_value, 2);
           break;
+        }
+
+        case JETSON_CURRENT_REG: {
+          const uint8_t reg_value[2] = {
+            (uint8_t) ((monitoring.jetson_current_ma >> 8) & 0xFF),
+            (uint8_t) (monitoring.jetson_current_ma & 0xFF)
+          };
+          write_spi_data(reg_value, 2);
         }
 
         case TELEMETRY_DATA_REG: {
-          // Placeholder: Replace with actual telemetry data
-          uint8_t reg_value[6] = {0};
+          const uint8_t reg_value[6] = {
+            (uint8_t) ((monitoring.battery_voltage_mv >> 8) & 0xFF),
+            (uint8_t) (monitoring.battery_voltage_mv & 0xFF),
+            (uint8_t) ((monitoring.esc_current_ma >> 8) & 0xFF),
+            (uint8_t) (monitoring.esc_current_ma & 0xFF),
+            (uint8_t) ((monitoring.jetson_current_ma >> 8) & 0xFF),
+            (uint8_t) (monitoring.jetson_current_ma & 0xFF)
+          };
           write_spi_data(reg_value, 6);
           break;
         }
@@ -123,8 +128,8 @@ void process_spi_cmd() {
         case MOTOR_SPEEDS_REG: {
           uint8_t reg_value[8];
           for (uint8_t i = 0; i < 4; i++) {
-            reg_value[i*2] = (motor_speeds[i] >> 8) & 0xFF;
-            reg_value[i*2 + 1] = motor_speeds[i] & 0xFF;
+            reg_value[2*i] = (motor_speeds[i] >> 8) & 0xFF;
+            reg_value[2*i + 1] = motor_speeds[i] & 0xFF;
           }
           write_spi_data(reg_value, 8);
           break;
@@ -165,8 +170,7 @@ void setup() {
   monitoring_init();
   #ifdef ENABLE_SERIAL_DEBUG
     if (serial_initialized) {
-      Serial.println("SPI initialized successfully");
-      Serial.println("Motors initialized successfully");
+      Serial.println("Peripherals initialized successfully");
     }
   #endif
 }

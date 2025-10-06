@@ -1,7 +1,8 @@
 #include "Motors.h"
 
 #define PWM_FREQUENCY 50 // 50Hz for standard ESCs
-#define PWM_PERIOD (48000000 / 16 / PWM_FREQUENCY) // Timer period for 50Hz with prescaler 16
+#define CLK_PRESCALER 16 // Clock division factor for GCLK_TCC0
+#define PWM_PERIOD (F_CPU / CLK_PRESCALER / PWM_FREQUENCY) // Timer period for 50Hz with prescaler 16
 
 // Initialize the Motors instance
 Motors_t motors = {
@@ -9,18 +10,18 @@ Motors_t motors = {
 };
 
 // Constants
-static const int CLKS_PER_MICROSECOND = (48000000 / 16 / 1000000); // Clock cycles per microsecond
+static const int CLKS_PER_MICROSECOND = (F_CPU / CLK_PRESCALER / 1000000); // Clock cycles per microsecond
 
 // ----------------------------------------------------------------------
 // PRIVATE FUNCTIONS
 // ----------------------------------------------------------------------
 /*!
-  \brief Converts a speed value (0-2047) to timer compare/capture value
+  \brief Convert a speed value (0-2047) to timer compare/capture value
   \param speed Speed value (0-2047)
   \return Corresponding timer compare/capture value
 */
 static uint32_t convert_speed_to_cc(int speed) {
-  return CLKS_PER_MICROSECOND * (int)(0.4885 * speed + 1000); // Convert speed (0-2047) to timer ticks
+  return CLKS_PER_MICROSECOND * (int) (0.4885 * speed + 1000); // Convert speed (0-2047) to timer ticks
 }
 
 /*!
@@ -91,7 +92,7 @@ static void configure_timers(void) {
 // PUBLIC FUNCTIONS
 // ----------------------------------------------------------------------
 /*!
-  \brief Initializes motor control by configuring pins and timers
+  \brief Initialize motor control by configuring pins and timers
 */
 void motors_init(void) {
   NVIC_DisableIRQ(TCC0_IRQn);
@@ -105,7 +106,7 @@ void motors_init(void) {
 }
 
 /*!
-  \brief Updates the pulse widths for all motors
+  \brief Update the pulse widths for all motors
   \param speeds Array of 4 speed values (0-2047) for motors
 */
 void set_motor_speed(const uint16_t* speeds) {

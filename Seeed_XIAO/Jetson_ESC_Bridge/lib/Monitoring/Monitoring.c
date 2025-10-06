@@ -39,7 +39,7 @@ static bool sampling_complete = false;
 // PRIVATE FUNCTIONS
 // ----------------------------------------------------------------------
 /*!
-  \brief Configures the pins to be used as ADC inputs
+  \brief Configure the pins to be used as ADC inputs
 
   Jetson Current:   PB08 (AIN[2])
   Battery Voltage:  PB09 (AIN[3])
@@ -58,7 +58,7 @@ static void configure_pins(void) {
 }
 
 /*!
-  \brief Connects the TC3 overflow event to the ADC start conversion
+  \brief Connect the TC3 overflow event to the ADC start conversion
 */
 static void configure_event_system(void) {
   // Enable EVSYS clocks and reset event system
@@ -76,7 +76,7 @@ static void configure_event_system(void) {
 }
 
 /*!
-  \brief Configures the ADC to sample 16 inputs on a TC3 overflow event
+  \brief Configure the ADC to sample 16 inputs on a TC3 overflow event
 
   Total clock cycles needed for sampling = 7 cycles/sample * 4 samples/input * 16 inputs = 448 cycles
 
@@ -122,7 +122,7 @@ static void configure_adc(void) {
 }
 
 /*!
-  \brief Configures TC3 to generate an overflow event at 1kHz to trigger ADC conversions
+  \brief Configure TC3 to generate an overflow event at 1kHz to trigger ADC conversions
 
   Timer frequency = 48MHz / 64 / 750 = 1kHz (1ms period)
 */
@@ -158,7 +158,7 @@ static void configure_timer(void) {
 // PUBLIC FUNCTIONS
 // ----------------------------------------------------------------------
 /*!
-  \brief Initializes the monitoring system
+  \brief Initialize the monitoring system
 */
 void monitoring_init(void) {
   NVIC_DisableIRQ(ADC_IRQn);

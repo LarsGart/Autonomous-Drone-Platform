@@ -72,7 +72,7 @@ static const uint16_t crc16_table[256] = {
 // PRIVATE FUNCTIONS
 // ----------------------------------------------------------------
 /*!
-  \brief Computes the CRC-16-CCITT checksum for a byte using a lookup table and updates the crc pointer
+  \brief Compute the CRC-16-CCITT checksum for a byte using a lookup table and updates the crc pointer
   \param crc The pointer to the CRC value that is being updated
   \param data The byte that is being used to calculate the CRC
 */
@@ -81,7 +81,7 @@ static void compute_crc16(uint16_t *crc, uint8_t data) {
 }
 
 /*!
-  \brief Checks if there is data available in the SPI receive buffer
+  \brief Check if there is data available in the SPI receive buffer
   \return true if data is available, false otherwise
 */
 static inline bool isDataAvailable(void) {
@@ -90,7 +90,7 @@ static inline bool isDataAvailable(void) {
 }
 
 /*!
-  \brief Reads a byte from the SPI receive buffer
+  \brief Read a byte from the SPI receive buffer
   \return The next byte from the buffer, or 0 if the buffer is empty
 */
 static inline uint8_t readByte(void) {
@@ -102,7 +102,7 @@ static inline uint8_t readByte(void) {
 }
 
 /*!
-  \brief Processes a received byte from the SPI master and manages the state machine for packet reception
+  \brief Process a received byte from the SPI master and manage the state machine for packet reception
   \param data The received byte
 */
 static inline void process_received_byte(uint8_t data) {
@@ -194,7 +194,7 @@ static inline void process_received_byte(uint8_t data) {
 }
 
 /*!
-  \brief Configures the pins for SERCOM0 SPI slave operation
+  \brief Configure the pins for SERCOM0 SPI slave operation
   
   This function sets the peripheral multiplexer for the SPI pins and sets
   the appropriate pin functions for MISO, MOSI, SCK, and CS
@@ -214,7 +214,7 @@ static void configure_pins(void) {
 }
 
 /*!
-  \brief Configures SERCOM0 as a SPI slave
+  \brief Configure SERCOM0 as a SPI slave
 */
 static void configure_sercom(void) {
   // Enable SERCOM0 clocks
@@ -227,6 +227,7 @@ static void configure_sercom(void) {
   // Reset SERCOM0 and wait for synchronization
   SERCOM0->SPI.CTRLA.bit.SWRST = 1;
   while (SERCOM0->SPI.CTRLA.bit.SWRST || SERCOM0->SPI.SYNCBUSY.bit.SWRST);
+
   // Set up SERCOM0 SPI registers
   SERCOM0->SPI.CTRLA.reg =  SERCOM_SPI_CTRLA_MODE_SPI_SLAVE | // Set SPI to slave mode
                             SERCOM_SPI_CTRLA_DOPO(0) |        // Set MISO to PAD0, SCK to PAD1, SS to PAD2
@@ -240,7 +241,7 @@ static void configure_sercom(void) {
 }
 
 /*!
-  \brief Configures the DMAC to transfer data between the SPI data register and the read/write circular buffers
+  \brief Configure the DMAC to transfer data between the SPI data register and the read/write circular buffers
 */
 static void configure_dmac(void) {
   // Enable clock for DMAC
@@ -313,7 +314,7 @@ static void configure_dmac(void) {
 // PUBLIC FUNCTIONS
 // ----------------------------------------------------------------
 /*!
-  \brief Initializes the Jetson SPI and DMAC
+  \brief Initialize the Jetson SPI and DMAC
 */
 void jetson_spi_init(void) {
   configure_pins();
@@ -322,7 +323,7 @@ void jetson_spi_init(void) {
 }
 
 /*!
-  \brief Processes all available data in the SPI receive buffer
+  \brief Process all available data in the SPI receive buffer
   
   This function should be called periodically in the main loop to handle incoming SPI data
 */
@@ -334,7 +335,7 @@ void process_spi_rx_data(void) {
 }
 
 /*!
-  \brief Queues data to be sent to the Jetson.
+  \brief Queue data in the write buffer to be sent to the Jetson.
   \param data Pointer to the data to send
   \param length Number of bytes to send
 
