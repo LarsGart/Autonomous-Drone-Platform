@@ -1,7 +1,12 @@
-/*
-  Motors.h - Header file for motor control functions
-*/
+/*!
+  \file Motors.h
+  \brief 4-in-1 ESC interface
 
+  This library uses TCC0 to create four 50Hz PWM outputs to control the
+  four motors for the drone
+
+  \todo Update this library to use/support DSHOT
+*/
 #ifndef MOTORS_H
 #define MOTORS_H
 
@@ -20,7 +25,7 @@ extern Motors_t motors;
 
 // Functions
 void motors_init(void);
-void update_motor_pulse_widths(const uint16_t* pulse_widths);
+void set_motor_speed(const uint16_t* speeds);
 
 #ifdef __cplusplus
 }

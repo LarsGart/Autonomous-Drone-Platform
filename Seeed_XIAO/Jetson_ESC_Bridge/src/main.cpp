@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Jetson_SPI.h>
 #include <Motors.h>
+#include <Monitoring.h>
 
 /*
   Debug
@@ -161,6 +162,7 @@ void setup() {
   // Initialize peripherals
   jetson_spi_init();
   motors_init();
+  monitoring_init();
   #ifdef ENABLE_SERIAL_DEBUG
     if (serial_initialized) {
       Serial.println("SPI initialized successfully");
@@ -170,8 +172,9 @@ void setup() {
 }
 
 void loop() {
-  // Continuously check for and process SPI data
+  // Continously process data from peripherals
   process_spi_rx_data();
+  process_adc_readings();
 
   // If a new command has been received, process it
   if (jetson_spi.rd_data_ready) {
@@ -181,7 +184,7 @@ void loop() {
 
   // Update motor speeds if they have been changed
   if (motor_speeds_updated) {
-    update_motor_pulse_widths(motor_speeds);
+    set_motor_speed(motor_speeds);
     motor_speeds_updated = false;
 
     #ifdef ENABLE_SERIAL_DEBUG

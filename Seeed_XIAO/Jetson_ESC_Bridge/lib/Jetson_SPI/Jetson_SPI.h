@@ -1,5 +1,14 @@
-/*
-  Jetson_SPI.h - Header file for Jetson SPI communication
+/*!
+  \file Jetson_SPI.h
+  \brief Jetson SPI communication interface
+
+  This library defines the interface for SPI communication between the Jetson Nano
+  and the microcontroller
+  
+  It uses SERCOM0 in SPI slave mode with DMA for efficient data transfer up to ~4 Mbps
+  
+  The SPI protocol includes commands for arming/disarming the ESCs, setting motor speeds,
+  stopping motors, and reading various telemetry registers
 */
 #ifndef Jetson_SPI_H
 #define Jetson_SPI_H
@@ -30,6 +39,7 @@ typedef struct {
 // Global instance of Jetson_SPI
 extern Jetson_SPI_t jetson_spi;
 
+// Functions
 void jetson_spi_init(void);
 void process_spi_rx_data(void);
 void write_spi_data(const uint8_t* data, uint8_t length);

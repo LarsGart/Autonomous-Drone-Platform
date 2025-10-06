@@ -71,30 +71,27 @@ static const uint16_t crc16_table[256] = {
 // ----------------------------------------------------------------
 // PRIVATE FUNCTIONS
 // ----------------------------------------------------------------
-/*
-  @name compute_crc16
-  @brief Computes the CRC-16-CCITT checksum for a byte using a lookup table and updates the crc pointer
-  @param crc The pointer to the CRC value that is being updated
-  @param data The byte that is being used to calculate the CRC
+/*!
+  \brief Computes the CRC-16-CCITT checksum for a byte using a lookup table and updates the crc pointer
+  \param crc The pointer to the CRC value that is being updated
+  \param data The byte that is being used to calculate the CRC
 */
 static void compute_crc16(uint16_t *crc, uint8_t data) {
   *crc = (*crc << 8) ^ crc16_table[((*crc >> 8) ^ data) & 0xFF];
 }
 
-/*
-  @name isDataAvailable
-  @brief Checks if there is data available in the SPI receive buffer
-  @return true if data is available, false otherwise
+/*!
+  \brief Checks if there is data available in the SPI receive buffer
+  \return true if data is available, false otherwise
 */
 static inline bool isDataAvailable(void) {
   uint16_t wr_ptr = RING_BUFFER_SIZE - dma_wrb[SPI_RX_DMA].BTCNT.reg;
   return rd_buffer_rd_ptr != wr_ptr;
 }
 
-/*
-  @name readByte
-  @brief Reads a byte from the SPI receive buffer
-  @return The next byte from the buffer, or 0 if the buffer is empty
+/*!
+  \brief Reads a byte from the SPI receive buffer
+  \return The next byte from the buffer, or 0 if the buffer is empty
 */
 static inline uint8_t readByte(void) {
   uint8_t data = rd_buffer[rd_buffer_rd_ptr++];
@@ -104,10 +101,9 @@ static inline uint8_t readByte(void) {
   return data;
 }
 
-/*
-  @name process_received_byte
-  @brief Processes a received byte from the SPI master and manages the state machine for packet reception
-  @param data The received byte
+/*!
+  \brief Processes a received byte from the SPI master and manages the state machine for packet reception
+  \param data The received byte
 */
 static inline void process_received_byte(uint8_t data) {
   static enum {
@@ -177,10 +173,12 @@ static inline void process_received_byte(uint8_t data) {
     case WAIT_FOR_CRC_2: {
       received_crc |= data; // Store second CRC byte
       if (computed_crc == received_crc) {
-        // Track where the read pointer to the write buffer is after a command is processed
-        // This is done because when the Jetson wants to read, it'll send a read command, then
-        // 4 idle bytes to allow the XIAO enough time to process and load data into the write buffer
-        // This read pointer is used as an offset for the write pointer when the write buffer is filled
+        /*
+          Track where the read pointer to the write buffer is after a command is processed
+          This is done because when the Jetson wants to read, it'll send a read command, then
+          4 idle bytes to allow the XIAO enough time to process and load data into the write buffer
+          This read pointer is used as an offset for the write pointer when the write buffer is filled
+        */
         wr_buffer_rd_ptr = RING_BUFFER_SIZE - dma_wrb[SPI_TX_DMA].BTCNT.reg;
         jetson_spi.rd_data_ready = true;
       }
@@ -195,17 +193,18 @@ static inline void process_received_byte(uint8_t data) {
   }
 }
 
-/*
-  @name configure_pins
-  @brief Configures the pins for SERCOM0 SPI slave operation. This function sets the peripheral multiplexer
-  for the SPI pins and sets the appropriate pin functions for MISO, MOSI, SCK, and SS.
+/*!
+  \brief Configures the pins for SERCOM0 SPI slave operation
+  
+  This function sets the peripheral multiplexer for the SPI pins and sets
+  the appropriate pin functions for MISO, MOSI, SCK, and CS
 */
 static void configure_pins(void) {
   // Enable pin mux
-  PORT->Group[PORTA].PINCFG[PIN_PA04].bit.PMUXEN = 1;
-  PORT->Group[PORTA].PINCFG[PIN_PA05].bit.PMUXEN = 1;
-  PORT->Group[PORTA].PINCFG[PIN_PA06].bit.PMUXEN = 1;
-  PORT->Group[PORTA].PINCFG[PIN_PA07].bit.PMUXEN = 1;
+  PORT->Group[PORTA].PINCFG[4].bit.PMUXEN = 1;
+  PORT->Group[PORTA].PINCFG[5].bit.PMUXEN = 1;
+  PORT->Group[PORTA].PINCFG[6].bit.PMUXEN = 1;
+  PORT->Group[PORTA].PINCFG[7].bit.PMUXEN = 1;
 
   // Select pin mux function
   PORT->Group[PORTA].PMUX[2].bit.PMUXE = MUX_PA04D_SERCOM0_PAD0;
@@ -214,63 +213,51 @@ static void configure_pins(void) {
   PORT->Group[PORTA].PMUX[3].bit.PMUXO = MUX_PA07D_SERCOM0_PAD3;
 }
 
-/*
-  @name configure_sercom
-  @brief Configures SERCOM0 as a SPI slave
+/*!
+  \brief Configures SERCOM0 as a SPI slave
 */
 static void configure_sercom(void) {
-  /*
-    Enable SERCOM0 clocks
-  */
+  // Enable SERCOM0 clocks
   PM->APBCMASK.reg |= PM_APBCMASK_SERCOM0;                // Enable APBC clock for SERCOM0
   GCLK->CLKCTRL.reg = GCLK_CLKCTRL_ID(GCM_SERCOM0_CORE) | // Select the SERCOM0 core clock
                       GCLK_CLKCTRL_GEN_GCLK0 |            // Use generic clock generator 0
                       GCLK_CLKCTRL_CLKEN;                 // Enable the clock
   while (GCLK->STATUS.bit.SYNCBUSY);
-  /*
-    Reset SERCOM0 and wait for synchronization
-  */
+
+  // Reset SERCOM0 and wait for synchronization
   SERCOM0->SPI.CTRLA.bit.SWRST = 1;
   while (SERCOM0->SPI.CTRLA.bit.SWRST || SERCOM0->SPI.SYNCBUSY.bit.SWRST);
-  /*
-    Set up SERCOM0 SPI registers
-  */
+  // Set up SERCOM0 SPI registers
   SERCOM0->SPI.CTRLA.reg =  SERCOM_SPI_CTRLA_MODE_SPI_SLAVE | // Set SPI to slave mode
                             SERCOM_SPI_CTRLA_DOPO(0) |        // Set MISO to PAD0, SCK to PAD1, SS to PAD2
                             SERCOM_SPI_CTRLA_DIPO(3);         // Set MOSI to PAD3
-
   SERCOM0->SPI.CTRLB.reg =  SERCOM_SPI_CTRLB_RXEN;            // Enable receiver
   while (SERCOM0->SPI.SYNCBUSY.bit.CTRLB);
-  /*
-    Enable SERCOM0 SPI
-  */
+
+  // Enable SERCOM0 SPI
   SERCOM0->SPI.CTRLA.bit.ENABLE = 1;
   while (SERCOM0->SPI.SYNCBUSY.bit.ENABLE);
 }
 
-/*
-  @name configure_dmac
-  @brief Configures the DMAC to transfer data between the SPI data register and the read/write circular buffers
+/*!
+  \brief Configures the DMAC to transfer data between the SPI data register and the read/write circular buffers
 */
 static void configure_dmac(void) {
-  /*
-    Enable clock for DMAC
-  */
+  // Enable clock for DMAC
   PM->AHBMASK.reg |= PM_AHBMASK_DMAC;   // Enable AHB clock for DMAC
   PM->APBBMASK.reg |= PM_APBBMASK_DMAC; // Enable APBB clock for DMAC
-  /*
-    Reset DMAC
-  */
+
+  // Reset DMAC
   DMAC->CTRL.bit.DMAENABLE = 0;
   DMAC->CTRL.bit.CRCENABLE = 0;
   DMAC->CTRL.bit.SWRST = 1;
-  /*
-    Configure DMAC descriptors and control
-  */
+  
+  // Configure DMAC descriptors and control
   DMAC->BASEADDR.reg = (uint32_t)&dma_desc; // Set base address for descriptors
   DMAC->WRBADDR.reg = (uint32_t)&dma_wrb; // Set base address for write-back descriptors
   DMAC->CTRL.reg =  DMAC_CTRL_DMAENABLE | // Enable DMAC
                     DMAC_CTRL_LVLEN(0xF); // Enable all priority levels
+
   /*
     Configure DMA channel 0 for SPI RX
       1. Reset channel
@@ -295,6 +282,7 @@ static void configure_dmac(void) {
                       DMAC_CHCTRLB_TRIGSRC(SERCOM0_DMAC_ID_RX) |  // Trigger source: SERCOM0 RX
                       DMAC_CHCTRLB_TRIGACT_BEAT;                  // Trigger action: one beat transfer
   DMAC->CHCTRLA.bit.ENABLE = 1;
+
   /*
     Configure DMA channel 1 for SPI TX
       1. Reset channel
@@ -324,9 +312,8 @@ static void configure_dmac(void) {
 // ----------------------------------------------------------------
 // PUBLIC FUNCTIONS
 // ----------------------------------------------------------------
-/*
-  @name jetson_spi_init
-  @brief Initializes the Jetson SPI and DMAC
+/*!
+  \brief Initializes the Jetson SPI and DMAC
 */
 void jetson_spi_init(void) {
   configure_pins();
@@ -334,10 +321,10 @@ void jetson_spi_init(void) {
   configure_dmac();
 }
 
-/*
-  @name process_spi_rx_data
-  @brief Processes all available data in the SPI receive buffer. This function should be called
-  periodically in the main loop to handle incoming SPI data.
+/*!
+  \brief Processes all available data in the SPI receive buffer
+  
+  This function should be called periodically in the main loop to handle incoming SPI data
 */
 void process_spi_rx_data(void) {
   while (isDataAvailable()) {
@@ -346,20 +333,22 @@ void process_spi_rx_data(void) {
   }
 }
 
-/*
-  @name write_spi_data
-  @brief Queues data to be sent to the Jetson. This function copies the provided data into the
-  write buffer and updates the write pointer.
-  @param data Pointer to the data to send
-  @param length Number of bytes to send
+/*!
+  \brief Queues data to be sent to the Jetson.
+  \param data Pointer to the data to send
+  \param length Number of bytes to send
+
+  This function copies the provided data into the write buffer and updates the write pointer
 */
 void write_spi_data(const uint8_t* data, uint8_t length) {
   // Set the write pointer to be 4 bytes ahead of the read pointer to account for the 4 idle bytes
-  uint16_t wr_buffer_wr_ptr = wr_buffer_rd_ptr + READ_IDLE_BYTES - 1;
-  wr_buffer_wr_ptr = (wr_buffer_wr_ptr >= RING_BUFFER_SIZE ? wr_buffer_wr_ptr - RING_BUFFER_SIZE : wr_buffer_wr_ptr);
+  uint8_t wr_buffer_wr_ptr = wr_buffer_rd_ptr + READ_IDLE_BYTES - 1;
+  if (wr_buffer_wr_ptr >= RING_BUFFER_SIZE) {
+    wr_buffer_wr_ptr -= RING_BUFFER_SIZE;
+  }
   for (uint8_t i = 0; i < length; i++) {
     wr_buffer[wr_buffer_wr_ptr++] = data[i];
-    if (wr_buffer_wr_ptr >= RING_BUFFER_SIZE) {
+    if (wr_buffer_wr_ptr == RING_BUFFER_SIZE) {
       wr_buffer_wr_ptr = 0;
     }
   }
