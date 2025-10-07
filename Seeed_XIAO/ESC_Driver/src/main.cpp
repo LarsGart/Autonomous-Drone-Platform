@@ -139,6 +139,9 @@ void setup() {
 
    // Output 0 speed to the motors
    resetSpeeds();
+
+   // Wait some time before sending out an ENQ message to prevent booting errors
+   delay(5000);
 }
 
 void loop() {

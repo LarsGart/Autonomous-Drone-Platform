@@ -1,0 +1,3 @@
+# Ignore build and IDE files
+.pio
+.vscode/*
