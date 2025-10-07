@@ -1,7 +1,8 @@
 #include <Arduino.h>
 #include <Jetson_SPI.h>
-#include <Motors.h>
 #include <Monitoring.h>
+#include <Motors.h>
+#include <Status_LED.h>
 
 // Debug
 // #define ENABLE_SERIAL_DEBUG // Uncomment to enable serial debugging
@@ -14,12 +15,16 @@
 #define TELEMETRY_DATA_REG    0x04
 #define ARM_STATUS_REG        0x05
 #define MOTOR_SPEEDS_REG      0x06
+#define SPI_DATA_CRC_REG      0x07
+#define DEBUG_STATUS_REG      0x08
 
 // Constants
-const uint8_t FIRMWARE_VERSION[2] = {0, 12}; // Firmware version 0.12
+const uint8_t FIRMWARE_VERSION[2] = {1, 0}; // Firmware version 1.0
 
 // Variables
 bool serial_initialized = false;
+bool debug_mode = false;
+bool debug_led_state = false;
 
 uint16_t motor_speeds[4];
 bool motor_speeds_updated = false;
@@ -29,6 +34,10 @@ bool motor_speeds_updated = false;
 */
 void process_spi_cmd() {
   switch (jetson_spi.received_cmd) {
+    case DEBUG_MODE_CMD: {
+      debug_mode = (jetson_spi.rd_data[0] == 0x01); // 1 to enter debug mode, 0 to enter normal mode
+      break;
+    }
     case ESC_ARM_DISARM_CMD: {
       motors.armed = (jetson_spi.rd_data[0] == 0x01); // 1 to arm, 0 to disarm
       if (!motors.armed) {
@@ -39,7 +48,6 @@ void process_spi_cmd() {
       }
       break;
     }
-
     case MOTOR_SPEEDS_CMD: {
       if (motors.armed) {
         uint16_t tmp_motor_speeds[4];
@@ -47,7 +55,7 @@ void process_spi_cmd() {
         // Parse motor speeds from received data
         // Each motor speed is 2 bytes (high byte first)
         for (uint8_t i = 0; i < 4; i++) {
-          tmp_motor_speeds[i] = (jetson_spi.rd_data[i*2] << 8) | jetson_spi.rd_data[i*2 + 1];
+          tmp_motor_speeds[i] = (jetson_spi.rd_data[2*i] << 8) | jetson_spi.rd_data[2*i + 1];
           if (tmp_motor_speeds[i] > 2047) {
             valid_speeds = false;
             break;
@@ -63,7 +71,6 @@ void process_spi_cmd() {
       }
       break;
     }
-
     case MOTOR_STOP_CMD: {
       for (uint8_t i = 0; i < 4; i++) {
         motor_speeds[i] = 0;
@@ -71,7 +78,10 @@ void process_spi_cmd() {
       motor_speeds_updated = true;
       break;
     }
-
+    case SET_LED_STATE_CMD: {
+      debug_led_state = (jetson_spi.rd_data[0] == 0x01); // 1 to turn status LED on (only in debug mode)
+      break;
+    }
     case READ_REGISTER_CMD: {
       uint8_t reg_addr = jetson_spi.rd_data[0];
       switch (reg_addr) {
@@ -79,7 +89,6 @@ void process_spi_cmd() {
           write_spi_data(FIRMWARE_VERSION, 2);
           break;
         }
-
         case BATTERY_VOLTAGE_REG: {
           const uint8_t reg_value[2] = {
             (uint8_t) ((monitoring.battery_voltage_mv >> 8) & 0xFF),
@@ -88,7 +97,6 @@ void process_spi_cmd() {
           write_spi_data(reg_value, 2);
           break;
         }
-
         case ESC_CURRENT_REG: {
           const uint8_t reg_value[2] = {
             (uint8_t) ((monitoring.esc_current_ma >> 8) & 0xFF),
@@ -97,15 +105,14 @@ void process_spi_cmd() {
           write_spi_data(reg_value, 2);
           break;
         }
-
         case JETSON_CURRENT_REG: {
           const uint8_t reg_value[2] = {
             (uint8_t) ((monitoring.jetson_current_ma >> 8) & 0xFF),
             (uint8_t) (monitoring.jetson_current_ma & 0xFF)
           };
           write_spi_data(reg_value, 2);
+          break;
         }
-
         case TELEMETRY_DATA_REG: {
           const uint8_t reg_value[6] = {
             (uint8_t) ((monitoring.battery_voltage_mv >> 8) & 0xFF),
@@ -118,13 +125,13 @@ void process_spi_cmd() {
           write_spi_data(reg_value, 6);
           break;
         }
-
         case ARM_STATUS_REG: {
-          uint8_t reg_value = { (uint8_t) (motors.armed ? 1 : 0) };
-          write_spi_data(&reg_value, 1);
+          const uint8_t reg_value[1] = {
+            (uint8_t) (motors.armed ? 1 : 0)
+          };
+          write_spi_data(reg_value, 1);
           break;
         }
-
         case MOTOR_SPEEDS_REG: {
           uint8_t reg_value[8];
           for (uint8_t i = 0; i < 4; i++) {
@@ -134,16 +141,31 @@ void process_spi_cmd() {
           write_spi_data(reg_value, 8);
           break;
         }
-
+        case SPI_DATA_CRC_REG: {
+          const uint8_t reg_value[4] = {
+            (uint8_t) ((jetson_spi.received_cmd >> 8) & 0xFF),
+            (uint8_t) (jetson_spi.received_cmd & 0xFF),
+            (uint8_t) ((jetson_spi.computed_crc >> 8) & 0xFF),
+            (uint8_t) (jetson_spi.computed_crc & 0xFF)
+          };
+          write_spi_data(reg_value, 4);
+          break;
+        }
+        case DEBUG_STATUS_REG: {
+          const uint8_t reg_value[1] = {
+            (uint8_t) (debug_mode ? 1 : 0)
+          };
+          write_spi_data(reg_value, 1);
+          break;
+        }
         default: {
-          uint8_t reg_value[2] = {0xB, 0xAD}; // Indicate invalid register with 0xBAD
+          const uint8_t reg_value[2] = {0xB, 0xAD}; // Indicate invalid register with 0xBAD
           write_spi_data(reg_value, 2);
           break;
         }
       }
       break;
     }
-    
     default: {
       break;
     }
@@ -166,8 +188,9 @@ void setup() {
 
   // Initialize peripherals
   jetson_spi_init();
-  motors_init();
   monitoring_init();
+  motors_init();
+  status_led_init();
   #ifdef ENABLE_SERIAL_DEBUG
     if (serial_initialized) {
       Serial.println("Peripherals initialized successfully");
@@ -186,8 +209,8 @@ void loop() {
     jetson_spi.rd_data_ready = false;
   }
 
-  // Update motor speeds if they have been changed
-  if (motor_speeds_updated) {
+  // Update motor speeds if they have been changed and not in debug mode
+  if (motor_speeds_updated && !debug_mode) {
     set_motor_speed(motor_speeds);
     motor_speeds_updated = false;
 
@@ -202,4 +225,13 @@ void loop() {
       }
     #endif
   }
+
+  // Set LED state
+  if (debug_mode) {
+    status_led.active = debug_led_state;
+  }
+  else {
+    status_led.active = motors.armed;
+  }
+  set_led_state();
 }

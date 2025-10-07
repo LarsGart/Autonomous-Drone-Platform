@@ -7,6 +7,8 @@
 
 // Initialize the Jetson SPI instance
 Jetson_SPI_t jetson_spi = {
+  .received_crc = 0,
+  .computed_crc = 0xFFFF,
   .received_cmd = 0,
   .rd_data = {0},
   .rd_data_ready = false
@@ -117,14 +119,12 @@ static inline void process_received_byte(uint8_t data) {
 
   static uint8_t expected_data_size = 0;
   static uint8_t data_index = 0;
-  static uint16_t computed_crc = 0xFFFF;
-  static uint16_t received_crc = 0;
 
   switch (state) {
     case WAIT_FOR_START_1: {
       if (data == (SPI_START_BYTES >> 8)) { // Check first start byte
-        computed_crc = 0xFFFF; // Reset CRC
-        compute_crc16(&computed_crc, data);
+        jetson_spi.computed_crc = 0xFFFF; // Reset CRC
+        compute_crc16(&jetson_spi.computed_crc, data);
         state = WAIT_FOR_START_2;
       }
       break;
@@ -132,7 +132,7 @@ static inline void process_received_byte(uint8_t data) {
 
     case WAIT_FOR_START_2: {
       if (data == (SPI_START_BYTES & 0xFF)) { // Check second start byte
-        compute_crc16(&computed_crc, data);
+        compute_crc16(&jetson_spi.computed_crc, data);
         state = WAIT_FOR_CMD;
       } else {
         state = WAIT_FOR_START_1; // Reset if not matched
@@ -144,7 +144,7 @@ static inline void process_received_byte(uint8_t data) {
       jetson_spi.received_cmd = data;
       // Validate command and get expected data size
       if (jetson_spi.received_cmd < NUM_CMDS) {
-        compute_crc16(&computed_crc, data);
+        compute_crc16(&jetson_spi.computed_crc, data);
         expected_data_size = SPI_DATA_LENGTH[jetson_spi.received_cmd];
         data_index = 0;
         state = WAIT_FOR_DATA;
@@ -156,7 +156,7 @@ static inline void process_received_byte(uint8_t data) {
 
     case WAIT_FOR_DATA: {
       jetson_spi.rd_data[data_index++] = data;
-      compute_crc16(&computed_crc, data);
+      compute_crc16(&jetson_spi.computed_crc, data);
       if (data_index >= expected_data_size) {
         data_index = 0;
         state = WAIT_FOR_CRC_1;
@@ -165,14 +165,14 @@ static inline void process_received_byte(uint8_t data) {
     }
 
     case WAIT_FOR_CRC_1: {
-      received_crc = data << 8; // Store first CRC byte
+      jetson_spi.received_cmd = data << 8; // Store first CRC byte
       state = WAIT_FOR_CRC_2;
       break;
     }
 
     case WAIT_FOR_CRC_2: {
-      received_crc |= data; // Store second CRC byte
-      if (computed_crc == received_crc) {
+      jetson_spi.received_cmd |= data; // Store second CRC byte
+      if (jetson_spi.computed_crc == jetson_spi.received_cmd) {
         /*
           Track where the read pointer to the write buffer is after a command is processed
           This is done because when the Jetson wants to read, it'll send a read command, then

@@ -20,20 +20,24 @@ extern "C" {
 #endif
 
 // Constants
-#define NUM_CMDS            4
+#define NUM_CMDS            6
 #define SPI_BUFFER_SIZE     8
 
 // Command definitions
-#define ESC_ARM_DISARM_CMD  0x00
-#define MOTOR_SPEEDS_CMD    0x01
-#define MOTOR_STOP_CMD      0x02
-#define READ_REGISTER_CMD   0x03
+#define DEBUG_MODE_CMD      0x00
+#define ESC_ARM_DISARM_CMD  0x01
+#define MOTOR_SPEEDS_CMD    0x02
+#define MOTOR_STOP_CMD      0x03
+#define SET_LED_STATE_CMD   0x04
+#define READ_REGISTER_CMD   0x05
 
 // Struct to hold Jetson SPI data and state
 typedef struct {
-  volatile uint8_t received_cmd;
-  volatile uint8_t rd_data[SPI_BUFFER_SIZE];
-  volatile bool rd_data_ready;
+  uint16_t received_crc;
+  uint16_t computed_crc;
+  uint8_t received_cmd;
+  uint8_t rd_data[SPI_BUFFER_SIZE];
+  bool rd_data_ready;
 } Jetson_SPI_t;
 
 // Global instance of Jetson_SPI
