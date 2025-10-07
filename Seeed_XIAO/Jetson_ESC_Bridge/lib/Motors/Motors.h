@@ -18,6 +18,7 @@ extern "C" {
 
 typedef struct {
   bool armed;
+  bool debug_mode;
 } Motors_t;
 
 // Global instance of Motors

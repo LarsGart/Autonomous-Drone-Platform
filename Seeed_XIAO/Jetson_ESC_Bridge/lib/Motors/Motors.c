@@ -6,11 +6,13 @@
 
 // Initialize the Motors instance
 Motors_t motors = {
-  .armed = false
+  .armed = false,
+  .debug_mode = false
 };
 
 // Constants
 static const int CLKS_PER_MICROSECOND = (F_CPU / CLK_PRESCALER / 1000000); // Clock cycles per microsecond
+static const int CC_1000US = (F_CPU / CLK_PRESCALER / 1000); // TCC CC value for a 1000 us pulse width
 
 // ----------------------------------------------------------------------
 // PRIVATE FUNCTIONS
@@ -70,10 +72,10 @@ static void configure_timers(void) {
   while (TCC0->SYNCBUSY.bit.PER || TCC0->SYNCBUSY.bit.WAVE);
 
   // Set initial duty cycles to 1000 microseconds (motors off)
-  TCC0->CC[0].reg = convert_speed_to_cc(0); // Motor 1
-  TCC0->CC[1].reg = convert_speed_to_cc(0); // Motor 2
-  TCC0->CC[2].reg = convert_speed_to_cc(0); // Motor 3
-  TCC0->CC[3].reg = convert_speed_to_cc(0); // Motor 4
+  TCC0->CC[0].reg = CC_1000US; // Motor 1
+  TCC0->CC[1].reg = CC_1000US; // Motor 2
+  TCC0->CC[2].reg = CC_1000US; // Motor 3
+  TCC0->CC[3].reg = CC_1000US; // Motor 4
   while (TCC0->SYNCBUSY.bit.CC0 || TCC0->SYNCBUSY.bit.CC1 || TCC0->SYNCBUSY.bit.CC2 || TCC0->SYNCBUSY.bit.CC3);
 
   // Enable TCC0 interrupts for overflow and match/capture channels
@@ -143,10 +145,10 @@ void TCC0_Handler(void) {
     PORT->Group[PORTA].OUTCLR.reg = PORT_PA02;
   }
 
-  // Set all motor pins high at the start of the next PWM cycle if armed
+  // Set all motor pins high at the start of the next PWM cycle if armed and not in debug mode
   if (TCC0->INTFLAG.bit.OVF) {
     TCC0->INTFLAG.reg |= TCC_INTFLAG_OVF;
-    if (motors.armed) {
+    if (motors.armed && !motors.debug_mode) {
       PORT->Group[PORTA].OUTSET.reg = PORT_PA02 |
                                       PORT_PA08 |
                                       PORT_PA10 |

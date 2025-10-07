@@ -1,7 +1,7 @@
 #include "Jetson_SPI.h"
 
 #define RING_BUFFER_SIZE  32
-#define READ_IDLE_BYTES    4
+#define READ_PAD_BYTES     4
 #define SPI_RX_DMA         0
 #define SPI_TX_DMA         1
 
@@ -17,15 +17,6 @@ Jetson_SPI_t jetson_spi = {
 // 2 DMA descriptors: one for RX, one for TX
 DmacDescriptor dma_desc[2] __attribute__((aligned(16)));
 DmacDescriptor dma_wrb[2] __attribute__((aligned(16)));
-
-// Constants
-static const uint16_t SPI_START_BYTES = 0xBC9E; // Start bytes for SPI communication
-static const uint8_t SPI_DATA_LENGTH[NUM_CMDS] = {
-  1, // ESC_ARM_DISARM
-  8, // MOTOR_SPEEDS
-  1, // MOTOR_STOP
-  1  // READ_REGISTER
-};
 
 // Variables
 static uint8_t rd_buffer[RING_BUFFER_SIZE]; // Buffer to hold received data
@@ -165,14 +156,14 @@ static inline void process_received_byte(uint8_t data) {
     }
 
     case WAIT_FOR_CRC_1: {
-      jetson_spi.received_cmd = data << 8; // Store first CRC byte
+      jetson_spi.received_crc = data << 8; // Store first CRC byte
       state = WAIT_FOR_CRC_2;
       break;
     }
 
     case WAIT_FOR_CRC_2: {
-      jetson_spi.received_cmd |= data; // Store second CRC byte
-      if (jetson_spi.computed_crc == jetson_spi.received_cmd) {
+      jetson_spi.received_crc |= data; // Store second CRC byte
+      if (jetson_spi.computed_crc == jetson_spi.received_crc) {
         /*
           Track where the read pointer to the write buffer is after a command is processed
           This is done because when the Jetson wants to read, it'll send a read command, then
@@ -343,7 +334,7 @@ void process_spi_rx_data(void) {
 */
 void write_spi_data(const uint8_t* data, uint8_t length) {
   // Set the write pointer to be 4 bytes ahead of the read pointer to account for the 4 idle bytes
-  uint8_t wr_buffer_wr_ptr = wr_buffer_rd_ptr + READ_IDLE_BYTES - 1;
+  uint8_t wr_buffer_wr_ptr = wr_buffer_rd_ptr + READ_PAD_BYTES - 1;
   if (wr_buffer_wr_ptr >= RING_BUFFER_SIZE) {
     wr_buffer_wr_ptr -= RING_BUFFER_SIZE;
   }

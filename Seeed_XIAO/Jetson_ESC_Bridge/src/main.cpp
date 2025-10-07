@@ -19,7 +19,7 @@
 #define DEBUG_STATUS_REG      0x08
 
 // Constants
-const uint8_t FIRMWARE_VERSION[2] = {1, 0}; // Firmware version 1.0
+const uint8_t FIRMWARE_VERSION[2] = {1, 2}; // Firmware version 1.2
 
 // Variables
 bool serial_initialized = false;
@@ -30,22 +30,35 @@ uint16_t motor_speeds[4];
 bool motor_speeds_updated = false;
 
 /*!
+  \brief Set motor speeds to 0 and indicate they were changed
+*/
+void zero_motor_speeds(void) {
+  for (uint8_t i = 0; i < 4; i++) {
+    motor_speeds[i] = 0;
+  }
+  motor_speeds_updated = true;
+}
+
+/*!
   \brief Read/write data based on the received SPI command
 */
 void process_spi_cmd() {
   switch (jetson_spi.received_cmd) {
     case DEBUG_MODE_CMD: {
-      debug_mode = (jetson_spi.rd_data[0] == 0x01); // 1 to enter debug mode, 0 to enter normal mode
+      // Only allow debug mode if the motors aren't currently armed
+      debug_mode = (jetson_spi.rd_data[0] == 0x01 && !motors.armed);
+      motors.debug_mode = debug_mode;
+
+      // Reset motors when exiting debug mode to prevent potential crazyness
+      if (!debug_mode) {
+        motors.armed = false;
+        zero_motor_speeds();
+      }
       break;
     }
     case ESC_ARM_DISARM_CMD: {
       motors.armed = (jetson_spi.rd_data[0] == 0x01); // 1 to arm, 0 to disarm
-      if (!motors.armed) {
-        for (uint8_t i = 0; i < 4; i++) {
-          motor_speeds[i] = 0; // Set to minimum throttle when disarmed
-        }
-        motor_speeds_updated = true;
-      }
+      zero_motor_speeds(); // Turn motors off when arm state changes
       break;
     }
     case MOTOR_SPEEDS_CMD: {
@@ -72,10 +85,7 @@ void process_spi_cmd() {
       break;
     }
     case MOTOR_STOP_CMD: {
-      for (uint8_t i = 0; i < 4; i++) {
-        motor_speeds[i] = 0;
-      }
-      motor_speeds_updated = true;
+      zero_motor_speeds();
       break;
     }
     case SET_LED_STATE_CMD: {
@@ -209,21 +219,21 @@ void loop() {
     jetson_spi.rd_data_ready = false;
   }
 
-  // Update motor speeds if they have been changed and not in debug mode
-  if (motor_speeds_updated && !debug_mode) {
+  #ifdef ENABLE_SERIAL_DEBUG
+    if (serial_initialized && motor_speeds_updated) {
+      Serial.print("Motor speeds: ");
+      for (int i = 0; i < 4; i++) {
+        Serial.print(motor_speeds[i]);
+        Serial.print(" ");
+      }
+      Serial.println();
+    }
+  #endif
+
+  // Update motor speeds if they have been changed
+  if (motor_speeds_updated) {
     set_motor_speed(motor_speeds);
     motor_speeds_updated = false;
-
-    #ifdef ENABLE_SERIAL_DEBUG
-      if (serial_initialized) {
-        Serial.print("Motor speeds: ");
-        for (int i = 0; i < 4; i++) {
-          Serial.print(motor_speeds[i]);
-          Serial.print(" ");
-        }
-        Serial.println();
-      }
-    #endif
   }
 
   // Set LED state

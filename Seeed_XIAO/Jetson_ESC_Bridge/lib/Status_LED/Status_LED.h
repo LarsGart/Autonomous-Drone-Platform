@@ -1,3 +1,11 @@
+/*!
+  \file Status_LED.h
+  \brief Onboard LED control
+
+  This library is simply used for setting the state of the onboard yellow LED
+
+  \todo Add support for LED blinking and other patterns?
+*/
 #ifndef STATUS_LED_H
 #define STATUS_LED_H
 
@@ -22,4 +30,4 @@ void set_led_state(void);
 }
 #endif
 
-#endif;
+#endif
