@@ -2,4 +2,4 @@
 **/__pycache__
 *.ipynb
 **.log
-./vscode
+.vscode/
