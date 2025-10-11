@@ -165,12 +165,14 @@ void motors_init(void) {
   \brief Send a DShot command to a motor
   \param cmd Command to be sent (0-2047)
   \param motor Index of the target motor (0-3)
+
+  If this function is called while the DShot frame is currently being sent or while in debug mode,
+  nothing will happen
 */
 void send_motor_cmd(const uint16_t cmd, const uint8_t motor) {
-  // Don't update the DShot bitstream if we're currently sending DShot data
-  if (toggle_data_valid)
+  // Don't update the DShot bitstream if we're currently sending DShot data or in debug mode
+  if (toggle_data_valid || motors.debug_mode)
     return;
-  toggle_data_valid = true;
   generate_dshot_bitstream(cmd, motor);
   update_toggle_data_array();
 }
@@ -178,12 +180,14 @@ void send_motor_cmd(const uint16_t cmd, const uint8_t motor) {
 /*!
   \brief Update the pulse widths for all motors
   \param speeds Array of 4 speed values (0-1999) for motors
+
+  If this function is called while the DShot frame is currently being sent, or while in debug mode,
+  or while disarmed, nothing will happen
 */
 void send_motor_speeds(const uint16_t* speeds) {
-  // Don't update the DShot bitstream if we're currently sending DShot data
-  if (toggle_data_valid)
+  // Don't update the DShot bitstream if we're currently sending DShot data or in debug mode or disarmed
+  if (toggle_data_valid || motors.debug_mode || !motors.armed)
     return;
-  toggle_data_valid = true;
   for (int m = 0; m < 4; m++) {
     generate_dshot_bitstream(speeds[m] + SPEED_CMD_BASE, m);
   }
