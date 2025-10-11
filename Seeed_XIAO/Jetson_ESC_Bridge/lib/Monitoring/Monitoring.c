@@ -141,9 +141,10 @@ static void configure_timer(void) {
   while (TC3->COUNT16.CTRLA.bit.SWRST || TC3->COUNT16.STATUS.bit.SYNCBUSY);
   
   // Configure TC3 for 1kHz operation
-  TC3->COUNT16.CTRLA.reg = TC_CTRLA_PRESCALER_DIV64 | // Use 16-bit counter mode
-                           TC_CTRLA_MODE_COUNT16;     // Set prescaler to 64
-  TC3->COUNT16.COUNT.reg = TC3_CYCLES_PER_MS;         // Set period to give 1kHz frequency
+  TC3->COUNT16.CTRLA.reg =  TC_CTRLA_PRESCALER_DIV64 |  // Set prescaler to 64
+                            TC_CTRLA_WAVEGEN_MFRQ |     // Match Frequency Generation to control period with CC
+                            TC_CTRLA_MODE_COUNT16;      // Use 16-bit counter mode
+  TC3->COUNT16.CC->reg = TC3_CYCLES_PER_MS;             // Set CC to give 1kHz frequency
   while (TC3->COUNT16.STATUS.bit.SYNCBUSY);
   
   // Enable TC3 overflow event output
