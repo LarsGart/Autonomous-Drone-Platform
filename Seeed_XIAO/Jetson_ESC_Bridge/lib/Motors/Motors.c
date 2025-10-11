@@ -3,6 +3,7 @@
 #define TC_CYCLES_PER_BIT 3     // Number of timer cycles per DShot bit
 #define DSHOT_BAUD        300E3 // Dshot baudrate in bits/s
 #define NUM_DSHOT_BITS    16    // Number of bits in a DShot packet
+#define NUM_TOGGLE_WORDS  48    // Total number of toggle writes per DShot frame
 #define SPEED_CMD_BASE    48    // Command value for a motor speed of 0
 
 // Pin number of each motor
@@ -26,7 +27,6 @@ static const uint32_t ALL_MOTOR_BITS =  (1 << MOTOR_1_PIN) |
                                         (1 << MOTOR_2_PIN) |
                                         (1 << MOTOR_3_PIN) | 
                                         (1 << MOTOR_4_PIN);
-static const uint8_t NUM_TOGGLE_WORDS = NUM_DSHOT_BITS * TC_CYCLES_PER_BIT;
 static const uint16_t TC4_CC_VAL = (uint16_t) (F_CPU / (TC_CYCLES_PER_BIT * DSHOT_BAUD));
 
 // Variables
@@ -79,11 +79,11 @@ static void update_toggle_data_array(void) {
       continue;
     dshot_data_bits_valid[m] = false;
 
-    uint8_t motor_bit_pos = MOTOR_BIT_POSITIONS[m];
+    const uint8_t motor_bit_pos = MOTOR_BIT_POSITIONS[m];
     for (int i = 0; i < NUM_DSHOT_BITS; i++) {
       uint8_t toggle_data_base_i = TC_CYCLES_PER_BIT * i;
       uint8_t dshot_data_bit = dshot_data_bits[m][i];
-      uint8_t *bit_toggle_sequence = TOGGLE_SEQUENCES[dshot_data_bit];
+      const uint8_t *bit_toggle_sequence = TOGGLE_SEQUENCES[dshot_data_bit];
       for (int t = 0; t < TC_CYCLES_PER_BIT; t++) {
         toggle_data[toggle_data_base_i + t] |= (bit_toggle_sequence[t] << motor_bit_pos);
       }
