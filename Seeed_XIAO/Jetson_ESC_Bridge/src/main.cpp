@@ -69,7 +69,7 @@ void process_spi_cmd() {
         // Each motor speed is 2 bytes (high byte first)
         for (uint8_t i = 0; i < 4; i++) {
           tmp_motor_speeds[i] = (jetson_spi.rd_data[2*i] << 8) | jetson_spi.rd_data[2*i + 1];
-          if (tmp_motor_speeds[i] > 2047) {
+          if (tmp_motor_speeds[i] > 1999) {
             valid_speeds = false;
             break;
           }

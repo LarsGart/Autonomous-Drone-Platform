@@ -18,12 +18,12 @@ static const int CC_1000US = (F_CPU / CLK_PRESCALER / 1000); // TCC CC value for
 // PRIVATE FUNCTIONS
 // ----------------------------------------------------------------------
 /*!
-  \brief Convert a speed value (0-2047) to timer compare/capture value
-  \param speed Speed value (0-2047)
+  \brief Convert a speed value to timer compare/capture value
+  \param speed Speed value (0-1999)
   \return Corresponding timer compare/capture value
 */
 static uint32_t convert_speed_to_cc(int speed) {
-  return CLKS_PER_MICROSECOND * (int) (0.4885 * speed + 1000); // Convert speed (0-2047) to timer ticks
+  return CLKS_PER_MICROSECOND * (int) (0.5 * speed + 1000); // Convert speed (0-1999) to timer ticks
 }
 
 /*!
@@ -109,7 +109,7 @@ void motors_init(void) {
 
 /*!
   \brief Update the pulse widths for all motors
-  \param speeds Array of 4 speed values (0-2047) for motors
+  \param speeds Array of 4 speed values (0-1999) for motors
 */
 void set_motor_speed(const uint16_t* speeds) {
   TCC0->CCB[0].reg = convert_speed_to_cc(speeds[0]);
