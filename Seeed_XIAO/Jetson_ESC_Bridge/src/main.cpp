@@ -7,6 +7,9 @@
 // Debug
 // #define ENABLE_SERIAL_DEBUG // Uncomment to enable serial debugging
 
+#define MAX_SPEED_VALUE 1999
+#define MAX_DSHOT_CMD_VALUE 2048
+
 // Read-only register addresses
 #define FIRMWARE_VERSION_REG  0x00
 #define BATTERY_VOLTAGE_REG   0x01
@@ -44,54 +47,6 @@ void zero_motor_speeds(void) {
 */
 void process_spi_cmd() {
   switch (jetson_spi.received_cmd) {
-    case DEBUG_MODE_CMD: {
-      // Only allow debug mode if the motors aren't currently armed
-      debug_mode = (jetson_spi.rd_data[0] == 0x01 && !motors.armed);
-      motors.debug_mode = debug_mode;
-
-      // Reset motors when exiting debug mode to prevent potential crazyness
-      if (!debug_mode) {
-        motors.armed = false;
-        zero_motor_speeds();
-      }
-      break;
-    }
-    case ESC_ARM_DISARM_CMD: {
-      motors.armed = (jetson_spi.rd_data[0] == 0x01); // 1 to arm, 0 to disarm
-      zero_motor_speeds(); // Turn motors off when arm state changes
-      break;
-    }
-    case MOTOR_SPEEDS_CMD: {
-      if (motors.armed) {
-        uint16_t tmp_motor_speeds[4];
-        bool valid_speeds = true;
-        // Parse motor speeds from received data
-        // Each motor speed is 2 bytes (high byte first)
-        for (uint8_t i = 0; i < 4; i++) {
-          tmp_motor_speeds[i] = (jetson_spi.rd_data[2*i] << 8) | jetson_spi.rd_data[2*i + 1];
-          if (tmp_motor_speeds[i] > 1999) {
-            valid_speeds = false;
-            break;
-          }
-        }
-        // Update motor speeds if all are valid
-        if (valid_speeds) {
-          for (uint8_t i = 0; i < 4; i++) {
-            motor_speeds[i] = tmp_motor_speeds[i];
-          }
-          motor_speeds_updated = true;
-        }
-      }
-      break;
-    }
-    case MOTOR_STOP_CMD: {
-      zero_motor_speeds();
-      break;
-    }
-    case SET_LED_STATE_CMD: {
-      debug_led_state = (jetson_spi.rd_data[0] == 0x01); // 1 to turn status LED on (only in debug mode)
-      break;
-    }
     case READ_REGISTER_CMD: {
       uint8_t reg_addr = jetson_spi.rd_data[0];
       switch (reg_addr) {
@@ -176,6 +131,61 @@ void process_spi_cmd() {
       }
       break;
     }
+    case DEBUG_MODE_CMD: {
+      // Only allow debug mode if the motors aren't currently armed
+      debug_mode = (jetson_spi.rd_data[0] == 0x01 && !motors.armed);
+      motors.debug_mode = debug_mode;
+
+      // Reset motors when exiting debug mode to prevent potential crazyness
+      if (!debug_mode) {
+        motors.armed = false;
+        zero_motor_speeds();
+      }
+      break;
+    }
+    case ESC_ARM_DISARM_CMD: {
+      motors.armed = (jetson_spi.rd_data[0] == 0x01); // 1 to arm, 0 to disarm
+      zero_motor_speeds(); // Turn motors off when arm state changes
+      break;
+    }
+    case MOTOR_SPEEDS_CMD: {
+      if (motors.armed) {
+        uint16_t tmp_motor_speeds[4];
+        bool valid_speeds = true;
+        // Parse motor speeds from received data
+        // Each motor speed is 2 bytes (high byte first)
+        for (uint8_t i = 0; i < 4; i++) {
+          tmp_motor_speeds[i] = (jetson_spi.rd_data[2*i] << 8) | jetson_spi.rd_data[2*i + 1];
+          if (tmp_motor_speeds[i] > MAX_SPEED_VALUE) {
+            valid_speeds = false;
+            break;
+          }
+        }
+        // Update motor speeds if all are valid
+        if (valid_speeds) {
+          for (uint8_t i = 0; i < 4; i++) {
+            motor_speeds[i] = tmp_motor_speeds[i];
+          }
+          motor_speeds_updated = true;
+        }
+      }
+      break;
+    }
+    case MOTOR_STOP_CMD: {
+      zero_motor_speeds();
+      break;
+    }
+    case SEND_DSHOT_CMD: {
+      uint16_t dshot_cmd = (jetson_spi.rd_data[0] << 8) | jetson_spi.rd_data[1];
+      uint8_t motor = jetson_spi.rd_data[2];
+      if (dshot_cmd < MAX_DSHOT_CMD_VALUE) {
+        send_motor_cmd(dshot_cmd, motor);
+      };
+    }
+    case SET_LED_STATE_CMD: {
+      debug_led_state = (jetson_spi.rd_data[0] == 0x01); // 1 to turn status LED on (only in debug mode)
+      break;
+    }
     default: {
       break;
     }
@@ -232,7 +242,7 @@ void loop() {
 
   // Update motor speeds if they have been changed
   if (motor_speeds_updated) {
-    set_motor_speed(motor_speeds);
+    send_motor_speeds(motor_speeds);
     motor_speeds_updated = false;
   }
 

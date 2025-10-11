@@ -45,26 +45,28 @@ extern "C" {
 #endif
 
 // Constants
-#define NUM_CMDS            6
+#define NUM_CMDS            7
 #define SPI_BUFFER_SIZE     8
 
 // Command definitions
-#define DEBUG_MODE_CMD      0x00
-#define ESC_ARM_DISARM_CMD  0x01
-#define MOTOR_SPEEDS_CMD    0x02
-#define MOTOR_STOP_CMD      0x03
-#define SET_LED_STATE_CMD   0x04
-#define READ_REGISTER_CMD   0x05
+#define READ_REGISTER_CMD   0x00
+#define DEBUG_MODE_CMD      0x01
+#define ESC_ARM_DISARM_CMD  0x02
+#define MOTOR_SPEEDS_CMD    0x03
+#define MOTOR_STOP_CMD      0x04
+#define SEND_DSHOT_CMD      0x05
+#define SET_LED_STATE_CMD   0x06
 
 // Constants
 const uint16_t SPI_START_BYTES = 0xBC9E; // Start bytes for SPI communication
 const uint8_t SPI_DATA_LENGTH[NUM_CMDS] = {
+  1, // READ_REGISTER
   1, // DEBUG_MODE
   1, // ESC_ARM_DISARM
   8, // MOTOR_SPEEDS
   1, // MOTOR_STOP
-  1, // SET_LED_STATE
-  1  // READ_REGISTER
+  3, // SEND_DSHOT_CMD
+  1  // SET_LED_STATE
 };
 
 // Struct to hold Jetson SPI data and state
